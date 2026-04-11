@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+
+
+app\web\AGENTS.md
+app\web\CLAUDE.md
+CLAUDE.md
+.claude
