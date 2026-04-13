@@ -3,11 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from db.session import engine
+from cache.redis import close_pool
 
 load_dotenv()
 
-from db.session import engine
-from cache.redis import close_pool
 
 
 @asynccontextmanager

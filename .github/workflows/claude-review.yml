@@ -1,0 +1,56 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    name: Claude code review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+          echo "diff_size=$(wc -c < pr.diff)" >> $GITHUB_OUTPUT
+
+      - name: Run Claude review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DIFF=$(cat pr.diff)
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$(jq -n \
+              --arg diff "$DIFF" \
+              --arg title "${{ github.event.pull_request.title }}" '{
+                model: "claude-sonnet-4-6",
+                max_tokens: 2048,
+                messages: [{
+                  role: "user",
+                  content: ("You are a senior software engineer reviewing a pull request for a project called Agentic System Diagrammer (FastAPI backend + Next.js frontend).\n\nPR title: " + $title + "\n\nDiff:\n```diff\n" + $diff + "\n```\n\nProvide a concise code review covering:\n- Correctness issues or bugs\n- Security concerns\n- Performance considerations\n- Code quality and maintainability\n\nFormat your response as GitHub-flavored markdown. Be direct and specific. If the diff looks good, say so briefly.")
+                }]
+              }')")
+
+          COMMENT=$(echo "$RESPONSE" | jq -r '.content[0].text')
+
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "## Claude Code Review
+
+          $COMMENT
+
+          ---
+          *Reviewed by claude-sonnet-4-6*"

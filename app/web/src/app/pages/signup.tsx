@@ -258,7 +258,7 @@ export function SignUpPage({ onClose, onSwitchToLogin }: SignUpPageProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
             onClick={onClose}
-            className="absolute top-0 left-0 px-6 py-3 border-r border-b border-white/10 bg-white/5 backdrop-blur-sm uppercase text-[11px] tracking-[0.15em] text-white hover:bg-white/10 transition-colors z-10"
+            className="absolute top-3 left-0 px-6 py-3 uppercase text-[11px] tracking-[0.15em] text-white/60 hover:text-white transition-colors z-10"
           >
             ← Back
           </motion.button>
