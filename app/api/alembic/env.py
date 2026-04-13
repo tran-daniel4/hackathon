@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from db.base import Base
-import models.user
 
 config = context.config
 config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
