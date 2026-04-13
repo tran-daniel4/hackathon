@@ -1,10 +1,23 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="Agentic System Diagrammer API")
+from db.session import engine
+from cache.redis import close_pool
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    await engine.dispose()
+    await close_pool()
+
+
+app = FastAPI(title="Agentic System Diagrammer API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

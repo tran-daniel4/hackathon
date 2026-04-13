@@ -89,7 +89,7 @@ export default function Home() {
               onClick={() => setShowLogin(true)}
               className="px-12 py-5 border border-white/20 backdrop-blur-sm bg-white/5 uppercase text-[11px] tracking-[0.2em] hover:bg-white/15 transition-colors"
             >
-              Request Access
+              Sign up
             </button>
           </motion.div>
         </div>
