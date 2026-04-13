@@ -4,17 +4,39 @@ import { motion, useScroll, useTransform } from "motion/react";
 import { useRef, useState } from "react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
+import { SignUpPage } from "./pages/signup";
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
   const [showLogin, setShowLogin] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
 
   const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0.4]);
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, 0.98]);
 
   if (showLogin) {
-    return <LoginPage onClose={() => setShowLogin(false)} />;
+    return (
+      <LoginPage
+        onClose={() => setShowLogin(false)}
+        onSwitchToSignUp={() => {
+          setShowLogin(false);
+          setShowSignUp(true);
+        }}
+      />
+    );
+  }
+
+  if (showSignUp) {
+    return (
+      <SignUpPage
+        onClose={() => setShowSignUp(false)}
+        onSwitchToLogin={() => {
+          setShowSignUp(false);
+          setShowLogin(true);
+        }}
+      />
+    );
   }
 
   return (

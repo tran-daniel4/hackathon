@@ -6,9 +6,10 @@ import { Mail, Lock, ArrowRight } from "lucide-react";
 
 interface LoginPageProps {
   onClose?: () => void;
+  onSwitchToSignUp?: () => void;
 }
 
-export function LoginPage({ onClose }: LoginPageProps) {
+export function LoginPage({ onClose, onSwitchToSignUp }: LoginPageProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,17 +25,17 @@ export function LoginPage({ onClose }: LoginPageProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0f]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#0a0a0f] flex">
       {/* Background */}
       <WaveBackground />
 
       {/* Content */}
-      <div className="relative z-10 w-full max-w-[900px] px-8">
+      <div className="relative z-10 w-full max-w-[900px] px-8 my-auto py-16 mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-white/10 bg-[#0f0f15]/80 backdrop-blur-xl overflow-hidden"
+          className="relative grid grid-cols-1 md:grid-cols-2 gap-0 border border-white/10 bg-[#0f0f15]/80 backdrop-blur-xl overflow-hidden"
         >
           {/* Left Side - Branding */}
           <div className="p-12 md:p-16 bg-gradient-to-br from-white/[0.02] to-transparent border-r border-white/10">
@@ -207,7 +208,13 @@ export function LoginPage({ onClose }: LoginPageProps) {
               <div className="mt-8 text-center text-[13px] text-white/70">
                 {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
                 <button
-                  onClick={() => setIsSignUp(!isSignUp)}
+                  onClick={() => {
+                    if (isSignUp) {
+                      setIsSignUp(false);
+                    } else {
+                      onSwitchToSignUp?.();
+                    }
+                  }}
                   className="text-white hover:underline transition-all"
                 >
                   {isSignUp ? "Sign in" : "Sign up"}
@@ -222,18 +229,17 @@ export function LoginPage({ onClose }: LoginPageProps) {
               )}
             </motion.div>
           </div>
+          {/* Back Button */}
+          <motion.button
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            onClick={onClose}
+            className="absolute top-0 left-0 px-6 py-3 border-r border-b border-white/10 bg-white/5 backdrop-blur-sm uppercase text-[11px] tracking-[0.15em] text-white hover:bg-white/10 transition-colors z-10"
+          >
+            ← Back
+          </motion.button>
         </motion.div>
-
-        {/* Back Button */}
-        <motion.button
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          onClick={onClose}
-          className="absolute top-0 left-8 px-6 py-3 border border-white/20 bg-white/5 backdrop-blur-sm uppercase text-[11px] tracking-[0.15em] text-white hover:bg-white/10 transition-colors"
-        >
-          ← Back
-        </motion.button>
       </div>
     </div>
   );
