@@ -588,6 +588,9 @@ function SidebarMenuBadge({
   );
 }
 
+const SKELETON_WIDTHS = Array.from({ length: 10 }, () => `${Math.floor(Math.random() * 40) + 50}%`);
+let skeletonWidthIndex = 0;
+
 function SidebarMenuSkeleton({
   className,
   showIcon = false,
@@ -596,7 +599,7 @@ function SidebarMenuSkeleton({
   showIcon?: boolean;
 }) {
   const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
+    return SKELETON_WIDTHS[skeletonWidthIndex++ % SKELETON_WIDTHS.length];
   }, []);
 
   return (
