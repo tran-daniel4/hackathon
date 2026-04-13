@@ -230,7 +230,7 @@ export function LoginPage({ onClose }: LoginPageProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           onClick={onClose}
-          className="absolute top-8 left-8 px-6 py-3 border border-white/20 bg-white/5 backdrop-blur-sm uppercase text-[11px] tracking-[0.15em] text-white hover:bg-white/10 transition-colors"
+          className="absolute top-0 left-8 px-6 py-3 border border-white/20 bg-white/5 backdrop-blur-sm uppercase text-[11px] tracking-[0.15em] text-white hover:bg-white/10 transition-colors"
         >
           ← Back
         </motion.button>
