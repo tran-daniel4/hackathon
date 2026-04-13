@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "motion/react";
+import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
@@ -8,12 +8,8 @@ import { SignUpPage } from "./pages/signup";
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll();
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0.4]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, 0.98]);
 
   if (showLogin) {
     return (
@@ -60,11 +56,8 @@ export default function Home() {
       </nav>
 
       {/* Hero - Full Bleed */}
-      <motion.section
-        style={{ opacity: heroOpacity, scale: heroScale }}
-        className="relative h-screen flex items-center overflow-hidden"
-      >
-        {/* Dynamic Wave Background */}
+      <section className="relative h-screen flex items-center overflow-hidden">
+        {/* Static Wave Background */}
         <div className="absolute inset-0 w-full h-full">
           <WaveBackground />
           <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/20 via-[#0a0a0f]/60 to-[#0a0a0f]" />
@@ -92,14 +85,12 @@ export default function Home() {
               Diagnose production issues in minutes, not hours.
             </p>
 
-            <motion.button
-              whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 0.15)" }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={() => setShowLogin(true)}
-              className="px-12 py-5 border border-white/20 backdrop-blur-sm bg-white/5 uppercase text-[11px] tracking-[0.2em] transition-colors"
+              className="px-12 py-5 border border-white/20 backdrop-blur-sm bg-white/5 uppercase text-[11px] tracking-[0.2em] hover:bg-white/15 transition-colors"
             >
               Request Access
-            </motion.button>
+            </button>
           </motion.div>
         </div>
 
@@ -113,7 +104,7 @@ export default function Home() {
           <div className="text-[9px] uppercase tracking-[0.2em]">Scroll</div>
           <div className="w-[1px] h-12 bg-white animate-pulse" />
         </motion.div>
-      </motion.section>
+      </section>
 
       {/* Feature Grid - Modular Panels */}
       <section className="px-8 md:px-16 py-32 max-w-[1600px] mx-auto">
@@ -151,8 +142,7 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: idx * 0.15 }}
-                whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.03)" }}
-                className="bg-[#0f0f15] p-12 transition-colors group cursor-pointer"
+                className="bg-[#0f0f15] p-12 hover:bg-white/3 transition-colors group cursor-pointer"
               >
                 <div className="text-[11px] tracking-[0.2em] opacity-30 mb-8 group-hover:opacity-50 transition-opacity">
                   {item.num}
@@ -290,14 +280,12 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-4">
-            <motion.button
-              whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={() => setShowLogin(true)}
-              className="px-12 py-5 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all"
+              className="px-12 py-5 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:bg-white/90 transition-colors"
             >
               Try DynoDocs
-            </motion.button>
+            </button>
             <button className="px-12 py-5 border border-white/20 uppercase text-[11px] tracking-[0.2em] hover:bg-white/5 transition-colors">
               Watch Demo
             </button>
