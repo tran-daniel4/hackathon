@@ -1,25 +1,39 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "motion/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { WaveBackground } from "@/components/WaveBackground";
+import { LoginPage } from "./pages/login";
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
+  const [showLogin, setShowLogin] = useState(false);
 
   const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0.4]);
   const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, 0.98]);
+
+  if (showLogin) {
+    return <LoginPage onClose={() => setShowLogin(false)} />;
+  }
 
   return (
     <div ref={containerRef} className="bg-[#0a0a0f] text-white min-h-screen">
       {/* Sparse Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex justify-between items-center mix-blend-difference">
         <div className="tracking-tight">DynoDocs</div>
-        <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
-          <button className="hover:opacity-100 transition-opacity">Platform</button>
-          <button className="hover:opacity-100 transition-opacity">Docs</button>
-          <button className="hover:opacity-100 transition-opacity">Demo</button>
+        <div className="flex items-center gap-12">
+          <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
+            <button className="hover:opacity-100 transition-opacity">Platform</button>
+            <button className="hover:opacity-100 transition-opacity">Docs</button>
+            <button className="hover:opacity-100 transition-opacity">Demo</button>
+          </div>
+          <button
+            onClick={() => setShowLogin(true)}
+            className="px-6 py-2 border border-white/20 bg-white/5 uppercase text-[11px] tracking-[0.15em] hover:bg-white/10 transition-colors"
+          >
+            Login
+          </button>
         </div>
       </nav>
 
@@ -59,6 +73,7 @@ export default function Home() {
             <motion.button
               whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 0.15)" }}
               whileTap={{ scale: 0.98 }}
+              onClick={() => setShowLogin(true)}
               className="px-12 py-5 border border-white/20 backdrop-blur-sm bg-white/5 uppercase text-[11px] tracking-[0.2em] transition-colors"
             >
               Request Access
@@ -256,6 +271,7 @@ export default function Home() {
             <motion.button
               whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
               whileTap={{ scale: 0.98 }}
+              onClick={() => setShowLogin(true)}
               className="px-12 py-5 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all"
             >
               Try DynoDocs
