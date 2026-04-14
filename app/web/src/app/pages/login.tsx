@@ -1,6 +1,5 @@
 import { motion } from "motion/react";
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, ArrowRight } from "lucide-react";
