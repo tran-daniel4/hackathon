@@ -20,7 +20,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Agentic System Diagrammer API", lifespan=lifespan)
 
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware, # HANDLE THIS LATER
     allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
