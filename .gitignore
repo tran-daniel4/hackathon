@@ -23,7 +23,7 @@ redis_data/
 logs/
 
 
-app\web\AGENTS.md
-app\web\CLAUDE.md
+app/web/AGENTS.md
+app/web/CLAUDE.md
 CLAUDE.md
 .claude
