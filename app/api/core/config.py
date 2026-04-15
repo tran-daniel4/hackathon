@@ -21,4 +21,4 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]  # fields are populated from env vars at runtime
