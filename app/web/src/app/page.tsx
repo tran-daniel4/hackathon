@@ -1,20 +1,39 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
+import { Dashboard } from "./pages/dashboard";
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem("access_token")) {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    setIsLoggedIn(false);
+  };
+
+  if (isLoggedIn) {
+    return <Dashboard onLogout={handleLogout} />;
+  }
 
   if (showLogin) {
     return (
       <LoginPage
         onClose={() => setShowLogin(false)}
+        onLogin={() => { setShowLogin(false); setIsLoggedIn(true); }}
         onSwitchToSignUp={() => {
           setShowLogin(false);
           setShowSignUp(true);
@@ -27,6 +46,7 @@ export default function Home() {
     return (
       <SignUpPage
         onClose={() => setShowSignUp(false)}
+        onSignUp={() => { setShowSignUp(false); setIsLoggedIn(true); }}
         onSwitchToLogin={() => {
           setShowSignUp(false);
           setShowLogin(true);
