@@ -63,7 +63,7 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
   };
 
   const handleGithubLogin = () => {
-    console.log("GitHub login initiated");
+    signIn("github");
   };
 
   return (
