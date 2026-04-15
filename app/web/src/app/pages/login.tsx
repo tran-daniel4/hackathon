@@ -63,7 +63,7 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
   };
 
   const handleGithubLogin = () => {
-    signIn("github");
+    // GitHub OAuth not yet implemented
   };
 
   return (
