@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before other imports so env vars are set when modules initialize
 
-from contextlib import asynccontextmanager  # noqa: E402
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.session import engine
