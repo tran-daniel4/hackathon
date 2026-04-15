@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, ArrowRight } from "lucide-react";
@@ -14,14 +15,13 @@ export function LoginPage({ onClose, onSwitchToSignUp }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Form submitted:", { email, password, name, isSignUp });
   };
 
   const handleGithubLogin = () => {
-    console.log("GitHub login initiated");
+    signIn("github");
   };
 
   return (
