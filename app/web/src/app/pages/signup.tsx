@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useState } from "react";
-import { WaveBackground } from "@/app/components/WaveBackground";
+import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, User, ArrowRight } from "lucide-react";
 
