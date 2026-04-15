@@ -1,8 +1,6 @@
 import uuid
 from datetime import datetime
-
 from pydantic import BaseModel, EmailStr, field_validator
-
 
 class RegisterRequest(BaseModel):
     email: EmailStr
@@ -23,27 +21,20 @@ class RegisterRequest(BaseModel):
             raise ValueError("Full name cannot be blank")
         return v.strip()
 
-
 class LoginRequest(BaseModel):
     """Used when calling /auth/login as JSON (not OAuth2 form flow)."""
     email: EmailStr
     password: str
-
-
 class RefreshRequest(BaseModel):
     refresh_token: str
-
-
 class LogoutRequest(BaseModel):
     refresh_token: str
-
 
 class TokenResponse(BaseModel):
     """Returned by /register, /login, and /refresh."""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-
 
 class UserResponse(BaseModel):
     """Returned by /me."""
