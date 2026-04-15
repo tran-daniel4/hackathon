@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
@@ -11,13 +11,9 @@ export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    if (localStorage.getItem("access_token")) {
-      setIsLoggedIn(true);
-    }
-  }, []);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => typeof window !== "undefined" && !!localStorage.getItem("access_token")
+  );
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
