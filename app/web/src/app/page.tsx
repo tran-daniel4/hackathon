@@ -2,21 +2,34 @@
 
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
+import { Dashboard } from "./pages/dashboard";
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-  const { data: session } = useSession();
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => typeof window !== "undefined" && !!localStorage.getItem("access_token")
+  );
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    setIsLoggedIn(false);
+  };
+
+  if (isLoggedIn) {
+    return <Dashboard onLogout={handleLogout} />;
+  }
 
   if (showLogin) {
     return (
       <LoginPage
         onClose={() => setShowLogin(false)}
+        onLogin={() => { setShowLogin(false); setIsLoggedIn(true); }}
         onSwitchToSignUp={() => {
           setShowLogin(false);
           setShowSignUp(true);
@@ -29,6 +42,7 @@ export default function Home() {
     return (
       <SignUpPage
         onClose={() => setShowSignUp(false)}
+        onSignUp={() => { setShowSignUp(false); setIsLoggedIn(true); }}
         onSwitchToLogin={() => {
           setShowSignUp(false);
           setShowLogin(true);
@@ -39,16 +53,8 @@ export default function Home() {
 
   return (
     <div ref={containerRef} className="bg-[#0a0a0f] text-white min-h-screen">
-      {/* Signed-in Banner */}
-      {session?.user?.email && (
-        <div className="fixed top-0 left-0 right-0 z-[60] px-8 py-2 bg-white/5 border-b border-white/10 flex items-center justify-center">
-          <span className="text-[11px] uppercase tracking-[0.15em] text-white/60">
-            Signed in as <span className="text-white/90">{session.user.email}</span>
-          </span>
-        </div>
-      )}
       {/* Sparse Navigation */}
-      <nav className={`fixed left-0 right-0 z-50 px-8 py-6 flex justify-between items-center mix-blend-difference ${session?.user?.email ? "top-9" : "top-0"}`}>
+      <nav className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex justify-between items-center mix-blend-difference">
         <div className="tracking-tight">DynoDocs</div>
         <div className="flex items-center gap-12">
           <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
@@ -56,21 +62,12 @@ export default function Home() {
             <button className="hover:opacity-100 transition-opacity">Docs</button>
             <button className="hover:opacity-100 transition-opacity">Demo</button>
           </div>
-          {session ? (
-            <button
-              onClick={() => signOut()}
-              className="px-6 py-2 border border-white/20 bg-white/5 uppercase text-[11px] tracking-[0.15em] hover:bg-white/10 transition-colors"
-            >
-              Logout
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowLogin(true)}
-              className="px-6 py-2 border border-white/20 bg-white/5 uppercase text-[11px] tracking-[0.15em] hover:bg-white/10 transition-colors"
-            >
-              Login
-            </button>
-          )}
+          <button
+            onClick={() => setShowLogin(true)}
+            className="px-6 py-2 border border-white/20 bg-white/5 uppercase text-[11px] tracking-[0.15em] hover:bg-white/10 transition-colors"
+          >
+            Login
+          </button>
         </div>
       </nav>
 
@@ -103,16 +100,12 @@ export default function Home() {
               Turn scattered architecture knowledge into a living visual map.
               Diagnose production issues in minutes, not hours.
             </p>
-            { session ? (
-              <></>
-            ) : (
-              <button
-                onClick={() => setShowLogin(true)}
-                className="px-12 py-5 border border-white/20 backdrop-blur-sm bg-white/5 uppercase text-[11px] tracking-[0.2em] hover:bg-white/15 transition-colors"
-              >
-                Sign up
-              </button>
-            )}
+            <button
+              onClick={() => setShowLogin(true)}
+              className="px-12 py-5 border border-white/20 backdrop-blur-sm bg-white/5 uppercase text-[11px] tracking-[0.2em] hover:bg-white/15 transition-colors"
+            >
+              Sign up
+            </button>
 
           </motion.div>
         </div>

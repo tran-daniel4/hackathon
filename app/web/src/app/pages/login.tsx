@@ -1,27 +1,69 @@
 import { motion } from "motion/react";
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { toast } from "sonner";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface LoginPageProps {
   onClose?: () => void;
+  onLogin?: () => void;
   onSwitchToSignUp?: () => void;
 }
 
-export function LoginPage({ onClose, onSwitchToSignUp }: LoginPageProps) {
+export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", { email, password, name, isSignUp });
+    setIsLoading(true);
+    try {
+      if (isSignUp) {
+        const res = await fetch(`${API_URL}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, full_name: name, password }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Registration failed");
+        }
+        const data = await res.json();
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+      } else {
+        const form = new URLSearchParams();
+        form.append("username", email);
+        form.append("password", password);
+        const res = await fetch(`${API_URL}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: form,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Login failed");
+        }
+        const data = await res.json();
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+      }
+      onLogin?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGithubLogin = () => {
-    signIn("github");
+    // GitHub OAuth not yet implemented
   };
 
   return (
@@ -194,13 +236,14 @@ export function LoginPage({ onClose, onSwitchToSignUp }: LoginPageProps) {
                 )}
 
                 <motion.button
-                  whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={!isLoading ? { scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" } : {}}
+                  whileTap={!isLoading ? { scale: 0.98 } : {}}
                   type="submit"
-                  className="w-full mt-6 px-6 py-4 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all group flex items-center justify-center gap-2"
+                  disabled={isLoading}
+                  className="w-full mt-6 px-6 py-4 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all group flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isSignUp ? "Create Account" : "Sign In"}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  {isLoading ? "Please wait…" : isSignUp ? "Create Account" : "Sign In"}
+                  {!isLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                 </motion.button>
               </form>
 
