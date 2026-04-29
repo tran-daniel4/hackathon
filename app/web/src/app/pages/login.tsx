@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { signIn } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, ArrowRight } from "lucide-react";
@@ -63,7 +64,7 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
   };
 
   const handleGithubLogin = () => {
-    // GitHub OAuth not yet implemented
+    signIn("github", { callbackUrl: "/auth/callback" });
   };
 
   return (

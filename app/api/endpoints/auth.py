@@ -1,5 +1,6 @@
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError
@@ -19,6 +20,7 @@ from core.security import (
 from db.session import get_db
 from models.user import User
 from schemas.auth import (
+    GitHubAuthRequest,
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
@@ -167,6 +169,61 @@ async def refresh_tokens(
     await redis.setex(_blocklist_key(jti), ttl, "1")
 
     # 4. Issue new token pair
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+    )
+
+
+@router.post("/github", response_model=TokenResponse)
+async def github_oauth(
+    body: GitHubAuthRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Exchange a GitHub OAuth access token for our JWT pair."""
+    async with httpx.AsyncClient() as client:
+        gh_headers = {
+            "Authorization": f"Bearer {body.access_token}",
+            "Accept": "application/vnd.github+json",
+        }
+        profile_res = await client.get("https://api.github.com/user", headers=gh_headers)
+        if profile_res.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid GitHub token")
+        profile = profile_res.json()
+
+        email: str | None = profile.get("email")
+        if not email:
+            emails_res = await client.get("https://api.github.com/user/emails", headers=gh_headers)
+            if emails_res.status_code == 200:
+                for entry in emails_res.json():
+                    if entry.get("primary") and entry.get("verified"):
+                        email = entry["email"]
+                        break
+        if not email:
+            email = f"{profile['login']}@users.noreply.github.com"
+
+    github_id = str(profile["id"])
+    full_name: str = profile.get("name") or profile["login"]
+
+    # Look up by github_id, then by email (account linking), then create
+    result = await db.execute(select(User).where(User.github_id == github_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user is not None:
+            user.github_id = github_id
+            await db.commit()
+            await db.refresh(user)
+
+    if user is None:
+        user = User(id=uuid.uuid4(), email=email, full_name=full_name, github_id=github_id)
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    user_id = str(user.id)
     return TokenResponse(
         access_token=create_access_token(user_id),
         refresh_token=create_refresh_token(user_id),
