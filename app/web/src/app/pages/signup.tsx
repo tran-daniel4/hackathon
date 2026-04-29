@@ -1,32 +1,56 @@
 import { motion } from "motion/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, User, ArrowRight } from "lucide-react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 interface SignUpPageProps {
   onClose?: () => void;
+  onSignUp?: () => void;
   onSwitchToLogin?: () => void;
 }
 
-export function SignUpPage({ onClose, onSwitchToLogin }: SignUpPageProps) {
+export function SignUpPage({ onClose, onSignUp, onSwitchToLogin }: SignUpPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      toast.error("Passwords do not match");
       return;
     }
     if (!acceptedTerms) {
-      alert("Please accept the terms and conditions");
+      toast.error("Please accept the terms and conditions");
       return;
     }
-    console.log("Sign up submitted:", { email, password, fullName });
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, full_name: fullName, password }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Registration failed");
+      }
+      const data = await res.json();
+      localStorage.setItem("access_token", data.access_token);
+      localStorage.setItem("refresh_token", data.refresh_token);
+      onSignUp?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGithubSignUp = () => {
@@ -229,13 +253,14 @@ export function SignUpPage({ onClose, onSwitchToLogin }: SignUpPageProps) {
                 </div>
 
                 <motion.button
-                  whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={!isLoading ? { scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" } : {}}
+                  whileTap={!isLoading ? { scale: 0.98 } : {}}
                   type="submit"
-                  className="w-full mt-2 px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all group flex items-center justify-center gap-2"
+                  disabled={isLoading}
+                  className="w-full mt-2 px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all group flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Create Account
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  {isLoading ? "Please wait…" : "Create Account"}
+                  {!isLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                 </motion.button>
               </form>
 

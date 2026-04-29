@@ -1,17 +1,13 @@
-from contextlib import asynccontextmanager
-from pathlib import Path
-
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+load_dotenv()  # must run before other imports so env vars are set when modules initialize
 
-from fastapi import FastAPI  # noqa: E402
-from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from db.session import engine  # noqa: E402
-from cache.redis import close_pool  # noqa: E402
-from endpoints.auth import router as auth_router  # noqa: E402
-
-
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from db.session import engine
+from cache.redis import close_pool
+from endpoints.auth import router as auth_router
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -19,9 +15,7 @@ async def lifespan(_app: FastAPI):
     await engine.dispose()
     await close_pool()
 
-
 app = FastAPI(title="Agentic System Diagrammer API", lifespan=lifespan)
-
 app.add_middleware(
     CORSMiddleware, # HANDLE THIS LATER
     allow_origins=["http://localhost:3000"],
@@ -30,9 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 app.include_router(auth_router)
-
 
 @app.get("/health")
 def health():

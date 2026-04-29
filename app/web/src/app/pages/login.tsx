@@ -2,8 +2,8 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { WaveBackground } from "@/components/WaveBackground";
-import { Mail, Lock, ArrowRight } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
+import { Mail, Lock, ArrowRight } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -20,7 +20,7 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
@@ -63,7 +63,7 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
   };
 
   const handleGithubLogin = () => {
-    // TODO: implement GitHub OAuth
+    // GitHub OAuth not yet implemented
   };
 
   return (
