@@ -39,7 +39,6 @@ export default function Home() {
   useEffect(() => {
     if (!isCheckingRefresh) return;
     const refreshToken = localStorage.getItem("refresh_token");
-    if (!refreshToken) { setIsCheckingRefresh(false); return; }
 
     fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
