@@ -21,6 +21,7 @@ export function ImageWithFallback({ src, alt, className, style, onError, ...rest
         style={style}
       >
         <div className="flex items-center justify-center w-full h-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={ERROR_IMG_SRC} alt="Error loading image" data-original-url={typeof src === 'string' ? src : ''} />
         </div>
       </div>

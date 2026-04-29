@@ -1,20 +1,77 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
+import { Dashboard } from "./pages/dashboard";
+
+function getValidToken(key: string): string | null {
+  const token = localStorage.getItem(key);
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 > Date.now() ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearTokens() {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+}
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => typeof window !== "undefined" && !!getValidToken("access_token")
+  );
+  const [isCheckingRefresh, setIsCheckingRefresh] = useState(
+    () => typeof window !== "undefined" && !getValidToken("access_token") && !!getValidToken("refresh_token")
+  );
+
+  useEffect(() => {
+    if (!isCheckingRefresh) return;
+    const refreshToken = localStorage.getItem("refresh_token");
+
+    fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+        setIsLoggedIn(true);
+      })
+      .catch(() => clearTokens())
+      .finally(() => setIsCheckingRefresh(false));
+  }, [isCheckingRefresh]);
+
+  if (isCheckingRefresh) return null;
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    setIsLoggedIn(false);
+  };
+
+  if (isLoggedIn) {
+    return <Dashboard onLogout={handleLogout} />;
+  }
 
   if (showLogin) {
     return (
       <LoginPage
         onClose={() => setShowLogin(false)}
+        onLogin={() => { setShowLogin(false); setIsLoggedIn(true); }}
         onSwitchToSignUp={() => {
           setShowLogin(false);
           setShowSignUp(true);
@@ -27,6 +84,7 @@ export default function Home() {
     return (
       <SignUpPage
         onClose={() => setShowSignUp(false)}
+        onSignUp={() => { setShowSignUp(false); setIsLoggedIn(true); }}
         onSwitchToLogin={() => {
           setShowSignUp(false);
           setShowLogin(true);
