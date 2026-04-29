@@ -35,7 +35,7 @@ def create_refresh_token(user_id: str) -> str:
     return _create_token(
         subject=user_id,
         token_type="refresh",
-        expires_delta=timedelta(days=settings.refresh_token_expire_days),
+        expires_delta=timedelta(minutes=settings.refresh_token_expire_minutes),
     )
 
 def decode_token(token: str) -> dict:
