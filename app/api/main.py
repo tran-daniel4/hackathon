@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from db.session import engine
-from cache.redis import close_pool
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from db.session import engine  # noqa: E402
+from cache.redis import close_pool  # noqa: E402
 
 
 
