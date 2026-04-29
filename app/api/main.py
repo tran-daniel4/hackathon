@@ -9,6 +9,7 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from db.session import engine  # noqa: E402
 from cache.redis import close_pool  # noqa: E402
+from endpoints.auth import router as auth_router  # noqa: E402
 
 
 
@@ -28,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(auth_router)
 
 
 @app.get("/health")
