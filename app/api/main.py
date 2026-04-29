@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 from db.session import engine
 from cache.redis import close_pool
-
-load_dotenv()
 
 
 
