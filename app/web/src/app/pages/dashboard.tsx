@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon } from "lucide-react";
 import { toast } from "sonner";
+import { AddRepositoryModal } from "@/components/AddRepositoryModal";
 
 interface Repository {
   id: string;
@@ -60,9 +61,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
   const [breadcrumbs] = useState(["Home", "Repositories"]);
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  const handleAddRepository = () => {
-    toast.success("Repository added successfully", {
+  const handleAddRepository = (repo: Repository) => {
+    setRepositories((prev) => [...prev, repo]);
+    toast.success(`${repo.name} added`, {
       description: "Your architecture diagram is being generated",
     });
   };
@@ -87,6 +90,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
   };
 
   return (
+    <>
+    {showAddModal && (
+      <AddRepositoryModal
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddRepository}
+      />
+    )}
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Navbar */}
       <nav className="border-b border-white/10 bg-[#0f0f15]/80 backdrop-blur-xl sticky top-0 z-50">
@@ -154,7 +164,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <motion.button
                 whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handleAddRepository}
+                onClick={() => setShowAddModal(true)}
                 className="px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.15em] transition-all flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
@@ -299,5 +309,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }
