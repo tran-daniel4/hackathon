@@ -2,8 +2,12 @@
 
 import { motion } from "motion/react";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon } from "lucide-react";
 import { toast } from "sonner";
+import { AddRepositoryModal } from "@/components/AddRepositoryModal";
+import { ActivityPage } from "./ActivityPage";
+import { RepositoryDetail } from "./RepositoryDetail";
 
 interface Repository {
   id: string;
@@ -27,6 +31,14 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
+  const { data: session } = useSession();
+  const initials = session?.user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() ?? "?";
+
   const [repositories, setRepositories] = useState<Repository[]>([
     {
       id: "1",
@@ -59,10 +71,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
-  const [breadcrumbs] = useState(["Home", "Repositories"]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [currentView, setCurrentView] = useState<"dashboard" | "activity" | "repository">("dashboard");
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
 
-  const handleAddRepository = () => {
-    toast.success("Repository added successfully", {
+  const handleAddRepository = (repo: Repository) => {
+    setRepositories((prev) => [...prev, repo]);
+    toast.success(`${repo.name} added`, {
       description: "Your architecture diagram is being generated",
     });
   };
@@ -86,7 +101,19 @@ export function Dashboard({ onLogout }: DashboardProps) {
     operational: { label: "Operational", description: "DevOps view", icon: SettingsIcon },
   };
 
+  const breadcrumbs =
+    currentView === "activity" ? ["Home", "Activity"] :
+    currentView === "repository" && selectedRepo ? ["Home", "Repositories", selectedRepo.name] :
+    ["Home", "Repositories"];
+
   return (
+    <>
+    {showAddModal && (
+      <AddRepositoryModal
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddRepository}
+      />
+    )}
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Navbar */}
       <nav className="border-b border-white/10 bg-[#0f0f15]/80 backdrop-blur-xl sticky top-0 z-50">
@@ -94,9 +121,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <div className="flex items-center gap-12">
             <h1 className="text-xl tracking-tight">DynoDocs</h1>
             <div className="hidden md:flex gap-8 text-[13px]">
-              <a href="#" className="text-white/60 hover:text-white transition-colors">Diagrams</a>
-              <a href="#" className="text-white/60 hover:text-white transition-colors">Activity</a>
-              <a href="#" className="text-white/60 hover:text-white transition-colors">Settings</a>
+              <button
+                onClick={() => setCurrentView("dashboard")}
+                className={`transition-colors ${currentView !== "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
+              >Diagrams</button>
+              <button
+                onClick={() => setCurrentView("activity")}
+                className={`transition-colors ${currentView === "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
+              >Activity</button>
+              <button className="text-white/60 hover:text-white transition-colors">Settings</button>
             </div>
           </div>
 
@@ -116,7 +149,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               onClick={onLogout}
               className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[14px] font-medium"
             >
-              JD
+              {initials}
             </motion.button>
           </div>
         </div>
@@ -138,8 +171,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-[1800px] mx-auto px-8 py-12">
+      {/* Sub-pages */}
+      {currentView === "activity" && <ActivityPage />}
+      {currentView === "repository" && selectedRepo && <RepositoryDetail repository={selectedRepo} />}
+
+      {/* Dashboard Main Content */}
+      {currentView === "dashboard" && <div className="max-w-[1800px] mx-auto px-8 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Repositories */}
           <div className="lg:col-span-2 space-y-6">
@@ -154,7 +191,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <motion.button
                 whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handleAddRepository}
+                onClick={() => setShowAddModal(true)}
                 className="px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.15em] transition-all flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
@@ -219,7 +256,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.03)" }}
-                    className="border border-white/10 bg-[#0f0f15]/60 p-6 transition-all group"
+                    onClick={() => { setSelectedRepo(repo); setCurrentView("repository"); }}
+                    className="border border-white/10 bg-[#0f0f15]/60 p-6 transition-all group cursor-pointer"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -238,7 +276,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleEditRepository(repo)}
+                          onClick={(e) => { e.stopPropagation(); handleEditRepository(repo); }}
                           className="p-2 hover:bg-white/10 rounded transition-colors"
                         >
                           <Edit3 className="w-4 h-4 text-white/60" />
@@ -246,7 +284,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDeleteRepository(repo.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteRepository(repo.id); }}
                           className="p-2 hover:bg-red-500/20 rounded transition-colors"
                         >
                           <Trash2 className="w-4 h-4 text-red-400/60" />
@@ -292,12 +330,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
               ))}
             </div>
 
-            <button className="w-full py-3 border border-white/10 text-[12px] text-white/60 hover:bg-white/5 hover:text-white transition-all uppercase tracking-[0.15em]">
+            <button
+              onClick={() => setCurrentView("activity")}
+              className="w-full py-3 border border-white/10 text-[12px] text-white/60 hover:bg-white/5 hover:text-white transition-all uppercase tracking-[0.15em]"
+            >
               View All Activity
             </button>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { signIn } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, User, ArrowRight } from "lucide-react";
@@ -54,7 +55,7 @@ export function SignUpPage({ onClose, onSignUp, onSwitchToLogin }: SignUpPagePro
   };
 
   const handleGithubSignUp = () => {
-    console.log("GitHub sign up initiated");
+    signIn("github", { callbackUrl: "/auth/callback" });
   };
 
   return (
