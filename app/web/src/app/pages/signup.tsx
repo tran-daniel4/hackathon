@@ -142,10 +142,10 @@ export function SignUpPage({ onClose, onSignUp, onSwitchToLogin }: SignUpPagePro
 
               {/* GitHub Sign Up */}
               <motion.button
-                whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 0.08)" }}
+                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleGithubSignUp}
-                className="w-full mb-4 px-6 py-3 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center gap-3 uppercase text-[11px] tracking-[0.15em] transition-colors group text-white"
+                className="w-full mb-4 px-6 py-3 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center gap-3 uppercase text-[11px] tracking-[0.15em] transition-colors group text-white hover:bg-white/8"
               >
                 <FaGithub className="w-4 h-4 opacity-80 group-hover:opacity-100 transition-opacity" />
                 Sign up with GitHub
@@ -253,11 +253,11 @@ export function SignUpPage({ onClose, onSignUp, onSwitchToLogin }: SignUpPagePro
                 </div>
 
                 <motion.button
-                  whileHover={!isLoading ? { scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" } : {}}
+                  whileHover={!isLoading ? { scale: 1.02 } : {}}
                   whileTap={!isLoading ? { scale: 0.98 } : {}}
                   type="submit"
                   disabled={isLoading}
-                  className="w-full mt-2 px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:text-black transition-all group flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full mt-2 px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.2em] hover:bg-white/90 hover:text-black transition-all group flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isLoading ? "Please wait…" : "Create Account"}
                   {!isLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}

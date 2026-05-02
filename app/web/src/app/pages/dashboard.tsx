@@ -152,10 +152,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 1)" }}
+                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleAddRepository}
-                className="px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.15em] transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-white text-black uppercase text-[11px] tracking-[0.15em] transition-all flex items-center gap-2 hover:bg-white/90"
               >
                 <Plus className="w-4 h-4" />
                 Add Repository
@@ -218,8 +218,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     key={repo.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.03)" }}
-                    className="border border-white/10 bg-[#0f0f15]/60 p-6 transition-all group"
+                    whileHover={{}}
+                    className="border border-white/10 bg-[#0f0f15]/60 p-6 transition-all group hover:bg-white/3"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
