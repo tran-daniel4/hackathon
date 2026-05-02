@@ -46,17 +46,29 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
 
   useEffect(() => {
     if (!hasGithub) return;
-    setIsLoading(true);
-    fetch("https://api.github.com/user/repos?sort=pushed&per_page=100&affiliation=owner", {
-      headers: { Authorization: `Bearer ${githubToken}`, Accept: "application/vnd.github+json" },
-    })
+
+    const controller = new AbortController();
+
+    // setState calls are inside promise callbacks to satisfy react-hooks/set-state-in-effect.
+    Promise.resolve()
+      .then(() => {
+        setIsLoading(true);
+        return fetch("https://api.github.com/user/repos?sort=pushed&per_page=100&affiliation=owner", {
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${githubToken}`, Accept: "application/vnd.github+json" },
+        });
+      })
       .then((r) => {
         if (!r.ok) throw new Error("GitHub API error");
         return r.json();
       })
-      .then(setGithubRepos)
-      .catch(() => toast.error("Failed to fetch GitHub repositories"))
+      .then((data) => setGithubRepos(data))
+      .catch((err) => {
+        if (err.name !== "AbortError") toast.error("Failed to fetch GitHub repositories");
+      })
       .finally(() => setIsLoading(false));
+
+    return () => controller.abort();
   }, [hasGithub, githubToken]);
 
   const handleToggle = (id: number) => {

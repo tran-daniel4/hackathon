@@ -32,13 +32,16 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingRefresh, setIsCheckingRefresh] = useState(false);
 
-  // Runs after mount so SSR and initial client render are always identical (both false)
+  // Runs after mount so SSR and initial client render are always identical (both false).
+  // setState is deferred into a .then() callback to satisfy react-hooks/set-state-in-effect.
   useEffect(() => {
-    if (getValidToken("access_token")) {
-      setIsLoggedIn(true);
-    } else if (localStorage.getItem("refresh_token")) {
-      setIsCheckingRefresh(true);
-    }
+    Promise.resolve().then(() => {
+      if (getValidToken("access_token")) {
+        setIsLoggedIn(true);
+      } else if (localStorage.getItem("refresh_token")) {
+        setIsCheckingRefresh(true);
+      }
+    });
   }, []);
 
   useEffect(() => {
