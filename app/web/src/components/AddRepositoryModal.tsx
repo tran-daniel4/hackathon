@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Check, X, FolderOpen, Star } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
@@ -42,9 +42,7 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
-  const [showPrivate, setShowPrivate] = useState(false);
-  const [showLocalInput, setShowLocalInput] = useState(!hasGithub);
-  const [localUrl, setLocalUrl] = useState("");
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!hasGithub) return;
@@ -85,12 +83,14 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
     onClose();
   };
 
-  const handleAddLocal = () => {
-    if (!localUrl.trim()) return;
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const folderName = files[0].webkitRelativePath.split("/")[0];
     onAdd({
       id: `local-${Date.now()}`,
-      name: localUrl.trim().split("/").pop() || localUrl.trim(),
-      url: localUrl.trim(),
+      name: folderName,
+      url: folderName,
       lastUpdated: "just now",
       componentsCount: 0,
     });
@@ -100,8 +100,7 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
   const filteredRepos = githubRepos.filter(
     (r) =>
       r.owner.type === "User" &&
-      (showPrivate || !r.private) &&
-      r.full_name.toLowerCase().includes(search.toLowerCase())
+r.full_name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -120,18 +119,25 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.2 }}
-          className="bg-[#0f0f15] border border-white/10 max-w-4xl w-full max-h-[80vh] flex flex-col"
+          className="bg-[#0f0f15] border border-white/10 max-w-4xl w-full max-h-[80vh] flex flex-col text-white"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="relative border-b border-white/10 px-6 py-4 flex items-center justify-between shrink-0">
             <button
-              onClick={() => setShowLocalInput((v) => !v)}
+              onClick={() => folderInputRef.current?.click()}
               className="flex items-center gap-2 px-4 py-2 border border-white/20 bg-white/5 hover:bg-white/10 transition-colors text-[11px] uppercase tracking-[0.15em] text-white/70 hover:text-white"
             >
               <FolderOpen className="w-4 h-4" />
               Upload Local Project
             </button>
+            <input
+              ref={folderInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFolderSelect}
+              {...{ webkitdirectory: "" }}
+            />
 
             <h2 className="absolute left-1/2 -translate-x-1/2 text-[18px] pointer-events-none">
               Add Repositories
@@ -142,40 +148,9 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
             </button>
           </div>
 
-          {/* Local input (collapsible) */}
-          <AnimatePresence>
-            {showLocalInput && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden border-b border-white/10"
-              >
-                <div className="px-6 py-4 flex gap-3">
-                  <input
-                    type="text"
-                    value={localUrl}
-                    onChange={(e) => setLocalUrl(e.target.value)}
-                    placeholder="/path/to/project or https://github.com/..."
-                    className="flex-1 bg-white/5 border border-white/10 px-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 transition-colors"
-                    onKeyDown={(e) => e.key === "Enter" && handleAddLocal()}
-                  />
-                  <button
-                    onClick={handleAddLocal}
-                    disabled={!localUrl.trim()}
-                    className="px-5 py-2 bg-white text-black text-[11px] uppercase tracking-[0.15em] disabled:opacity-40 disabled:cursor-not-allowed transition-opacity shrink-0"
-                  >
-                    Add
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Search + filters */}
+          {/* Search */}
           {hasGithub && (
-            <div className="px-6 py-3 border-b border-white/10 space-y-2 shrink-0">
+            <div className="px-6 py-3 border-b border-white/10 shrink-0">
               <input
                 type="text"
                 value={search}
@@ -183,17 +158,6 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
                 placeholder="Search repositories..."
                 className="w-full bg-white/5 border border-white/10 px-3 py-2 text-[13px] text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 transition-colors"
               />
-              <label className="flex items-center gap-2 cursor-pointer w-fit">
-                <input
-                  type="checkbox"
-                  checked={showPrivate}
-                  onChange={(e) => setShowPrivate(e.target.checked)}
-                  className="w-3.5 h-3.5 bg-white/5 border border-white/20"
-                />
-                <span className="text-[11px] uppercase tracking-[0.15em] text-white/50">
-                  Show private repos
-                </span>
-              </label>
             </div>
           )}
 
