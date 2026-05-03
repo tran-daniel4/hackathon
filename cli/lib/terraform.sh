@@ -19,7 +19,14 @@ cmd_up() {
   read -rp "SSH private key path [~/.ssh/id_ed25519]: " SSH_KEY_PATH
   SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/id_ed25519}"
 
-  printf "DROPLET_IP=%s\nSSH_KEY_PATH=%s\n" "$DROPLET_IP" "$SSH_KEY_PATH" > "$CONFIG"
+  for entry in "DROPLET_IP=$DROPLET_IP" "SSH_KEY_PATH=$SSH_KEY_PATH"; do
+    key="${entry%%=*}"
+    if [[ -f "$CONFIG" ]] && grep -q "^${key}=" "$CONFIG"; then
+      sed -i "s|^${key}=.*|${entry}|" "$CONFIG"
+    else
+      printf "%s\n" "$entry" >> "$CONFIG"
+    fi
+  done
 
   echo ""
   echo "✓ Provisioning complete"
@@ -33,6 +40,8 @@ cmd_down() {
   echo "→ Destroying infrastructure..."
   terraform -chdir="$INFRA_DIR" destroy -auto-approve
 
-  rm -f "$CONFIG"
+  if [[ -f "$CONFIG" ]]; then
+    sed -i 's/^DROPLET_IP=.*/DROPLET_IP=/' "$CONFIG"
+  fi
   echo "✓ Infrastructure destroyed and local state cleared."
 }
