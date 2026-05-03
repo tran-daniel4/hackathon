@@ -3,24 +3,14 @@ set -e
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "Checking for port 5432 conflicts..."
-PIDS_ON_5432=$(netstat -ano 2>/dev/null | grep ":5432" | awk '{print $5}' | sort -u)
-PID_COUNT=$(echo "$PIDS_ON_5432" | grep -c '[0-9]' || true)
+cd "$REPO_ROOT"
 
-if [ "$PID_COUNT" -gt 1 ]; then
-  echo ""
-  echo "WARNING: Multiple processes detected on port 5432 (PIDs: $(echo $PIDS_ON_5432 | tr '\n' ' '))"
-  echo "A native PostgreSQL service may be competing with Docker."
-  echo "Fix: run the following in PowerShell (as Administrator), then re-run this script:"
-  echo ""
-  echo "  Stop-Service -Name postgresql*"
-  echo "  Get-Service -Name postgresql* | Set-Service -StartupType Disabled"
-  echo ""
-  exit 1
+if [ -n "$(docker compose ps -q 2>/dev/null)" ]; then
+  echo "Containers already running. Tearing down volumes for a clean start..."
+  docker compose down -v
 fi
 
 echo "Starting Docker containers..."
-cd "$REPO_ROOT"
 docker compose up -d postgres redis
 
 echo "Waiting for postgres to be ready..."
@@ -29,9 +19,14 @@ until docker compose exec -T postgres pg_isready -U "${POSTGRES_USER:-dynodocs}"
 done
 echo "Postgres is ready."
 
-echo "Starting backend..."
+echo "Running database migrations..."
 cd "$REPO_ROOT/app/api"
 source .venv/Scripts/activate
+alembic upgrade head
+echo "Migrations complete."
+
+echo "Starting backend..."
+cd "$REPO_ROOT/app/api"
 uvicorn main:app --reload &
 BACKEND_PID=$!
 echo "Backend started (PID $BACKEND_PID)"

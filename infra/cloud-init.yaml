@@ -1,0 +1,78 @@
+#cloud-config
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - docker.io
+  - python3
+  - python3-pip
+  - python3-venv
+
+write_files:
+  - path: /opt/hackathon/app/api/.env
+    content: |
+      DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dynodocs
+      ALEMBIC_DATABASE_URL=postgresql+asyncpg://user:password@127.0.0.1:5432/dynodocs
+      REDIS_URL=redis://localhost:6379/0
+      JWT_SECRET_KEY=CHANGE_ME_run_openssl_rand_hex_32
+      ACCESS_TOKEN_EXPIRE_MINUTES=15
+      REFRESH_TOKEN_EXPIRE_MINUTES=60
+      POSTGRES_USER=user
+      POSTGRES_PASSWORD=password
+      POSTGRES_DB=dynodocs
+      GITHUB_CLIENT_ID=CHANGE_ME
+      GITHUB_CLIENT_SECRET=CHANGE_ME
+      NEXTAUTH_SECRET=CHANGE_ME
+    permissions: '0600'
+    defer: true
+
+  - path: /etc/systemd/system/api.service
+    content: |
+      [Unit]
+      Description=Agentic System Diagrammer API
+      After=network.target docker.service
+
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory=/opt/hackathon/app/api
+      ExecStart=/opt/hackathon/app/api/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+      EnvironmentFile=/opt/hackathon/app/api/.env
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl start docker
+  - systemctl enable docker
+
+  # Postgres and Redis via Docker
+  - docker run -d --name postgres --restart always
+    -e POSTGRES_USER=user
+    -e POSTGRES_PASSWORD=password
+    -e POSTGRES_DB=dynodocs
+    -p 5432:5432
+    postgres:15
+  - docker run -d --name redis --restart always -p 6379:6379 redis:7
+
+  # Install Ollama
+  - curl -fsSL https://ollama.com/install.sh | sh
+  - ollama pull llama3
+  - ollama pull deepseek-coder
+
+  # Clone repo
+  - git clone https://github.com/tran-daniel4/hackathon.git /opt/hackathon
+
+  # Set up Python venv and install deps
+  - python3 -m venv /opt/hackathon/app/api/.venv
+  - /opt/hackathon/app/api/.venv/bin/pip install -r /opt/hackathon/app/api/requirements.txt
+
+  # Enable and start the API
+  - systemctl daemon-reload
+  - systemctl enable api
+  - systemctl start api

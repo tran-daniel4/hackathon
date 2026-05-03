@@ -28,4 +28,11 @@ app/web/CLAUDE.md
 CLAUDE.md
 .claude
 
+.terraform/
+terraform.tfvars
+terraform.tfstate
+terraform.tfstate.*
+
+cli/config.env
+
 temp.txt
