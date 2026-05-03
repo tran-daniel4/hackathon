@@ -4,9 +4,9 @@ variable "do_token" {
   sensitive   = true
 }
 
-variable "ssh_fingerprint" {
-  description = "SSH key fingerprint registered in DigitalOcean (Settings > Security)"
-  type        = string
+variable "ssh_fingerprints" {
+  description = "SSH key fingerprints for all team members registered in DigitalOcean (Settings > Security)"
+  type        = list(string)
 }
 
 variable "do_project_name" {

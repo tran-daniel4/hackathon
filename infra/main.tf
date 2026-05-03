@@ -19,7 +19,7 @@ resource "digitalocean_droplet" "dynodocs" {
 
   user_data = file("cloud-init.yaml")
 
-  ssh_keys = [var.ssh_fingerprint]
+  ssh_keys = var.ssh_fingerprints
 }
 
 data "digitalocean_project" "dynodocs" {

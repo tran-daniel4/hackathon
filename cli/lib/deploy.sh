@@ -4,7 +4,7 @@ cmd_redeploy() {
     exit 1
   fi
 
-  source "$CONFIG"
+  source <(tr -d '\r' < "$CONFIG")
   SSH_KEY_PATH="${SSH_KEY_PATH/#\~/$HOME}"
 
   echo "→ Deploying to $DROPLET_IP..."
