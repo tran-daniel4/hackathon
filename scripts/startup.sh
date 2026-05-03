@@ -31,13 +31,15 @@ echo "Postgres is ready."
 
 echo "Starting backend..."
 cd "$REPO_ROOT/app/api"
-source .venv/Scripts/activate
+source "$REPO_ROOT/.venv/Scripts/activate"
+pip install -r requirements.txt -q
 uvicorn main:app --reload &
 BACKEND_PID=$!
 echo "Backend started (PID $BACKEND_PID)"
 
 echo "Starting frontend..."
 cd "$REPO_ROOT/app/web"
+npm install
 npm run dev &
 FRONTEND_PID=$!
 echo "Frontend started (PID $FRONTEND_PID)"
