@@ -20,7 +20,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Agentic System Diagrammer API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=[o.strip() for o in settings.allowed_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],

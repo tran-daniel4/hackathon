@@ -1,4 +1,3 @@
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,9 +9,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_minutes: int = 60
 
-    # Comma-separated list of allowed CORS origins, e.g.:
-    # ALLOWED_ORIGINS=http://localhost:3000,https://yourapp.com
-    allowed_origins: list[str] = ["http://localhost:3000"]
+    # Comma-separated origins, e.g. ALLOWED_ORIGINS=http://localhost:3000,https://yourapp.com
+    allowed_origins: str = "http://localhost:3000"
 
     # GitHub OAuth
     github_client_id: str = ""
@@ -27,13 +25,6 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
-
-    @field_validator("allowed_origins", mode="before")
-    @classmethod
-    def parse_origins(cls, v: object) -> list[str]:
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v  # type: ignore[return-value]
 
 
 settings = Settings()  # type: ignore[call-arg]  # fields are populated from env vars at runtime
