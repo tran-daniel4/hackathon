@@ -19,7 +19,7 @@ runcmd:
 
   # Clone repo
   - rm -rf /opt/dynodocs
-  - git clone https://github.com/tran-daniel4/DynoDocs.git /opt/dynodocs
+  - git clone --branch feature/agents https://github.com/tran-daniel4/DynoDocs.git /opt/dynodocs
 
   # Write .env
   - |
@@ -56,8 +56,8 @@ runcmd:
   # Install Ollama (non-blocking)
   - curl -fsSL https://ollama.com/install.sh | sh || true
   - sleep 5
-  - ollama pull llama3 || true
-  - ollama pull deepseek-coder || true
+  - ollama pull llama3:8b-instruct-q4_K_M || true
+  - ollama pull deepseek-coder:6.7b-instruct-q4_K_M || true
 
   # Set up Python venv and install deps
   - python3 -m venv /opt/dynodocs/app/api/.venv
