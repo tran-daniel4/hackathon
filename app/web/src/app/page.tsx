@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { useSession, signOut } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
@@ -26,6 +27,7 @@ function clearTokens() {
 }
 
 export default function Home() {
+  const { status: sessionStatus } = useSession();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -63,15 +65,16 @@ export default function Home() {
       .finally(() => setIsCheckingRefresh(false));
   }, [isCheckingRefresh]);
 
-  if (isCheckingRefresh) return null;
+  if (sessionStatus === "loading" || isCheckingRefresh) return null;
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     setIsLoggedIn(false);
+    signOut({ redirect: false });
   };
 
-  if (isLoggedIn) {
+  if (sessionStatus === "authenticated" || isLoggedIn) {
     return <Dashboard onLogout={handleLogout} />;
   }
 

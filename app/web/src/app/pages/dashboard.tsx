@@ -3,12 +3,13 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut } from "lucide-react";
+import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AddRepositoryModal } from "@/components/AddRepositoryModal";
 import { ActivityPage } from "./ActivityPage";
 import { RepositoryDetail } from "./RepositoryDetail";
 import { SettingsPage } from "./SettingsPage";
+import { TeamsPage } from "./TeamsPage";
 
 interface Repository {
   id: string;
@@ -73,7 +74,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [currentView, setCurrentView] = useState<"dashboard" | "activity" | "repository" | "settings">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "activity" | "repository" | "settings" | "teams">("dashboard");
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
@@ -123,6 +124,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const breadcrumbs =
     currentView === "activity" ? ["Home", "Activity"] :
     currentView === "settings" ? ["Home", "Settings"] :
+    currentView === "teams"    ? ["Home", "Teams"] :
     currentView === "repository" && selectedRepo ? ["Home", "Repositories", selectedRepo.name] :
     ["Home", "Repositories"];
 
@@ -150,9 +152,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 className={`transition-colors ${currentView === "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
               >Activity</button>
               <button
-                onClick={() => setCurrentView("settings")}
-                className={`transition-colors ${currentView === "settings" ? "text-white" : "text-white/60 hover:text-white"}`}
-              >Settings</button>
+                onClick={() => setCurrentView("teams")}
+                className={`transition-colors ${currentView === "teams" ? "text-white" : "text-white/60 hover:text-white"}`}
+              >Teams</button>
             </div>
           </div>
 
@@ -229,6 +231,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <p className="text-[11px] text-white/50">{session?.user?.email ?? ""}</p>
                     </div>
                     <button
+                      onClick={() => { setShowUserDropdown(false); setCurrentView("settings"); }}
+                      className="w-full px-4 py-3 flex items-center gap-2 text-[13px] text-white/80 hover:bg-white/5 transition-colors border-b border-white/5"
+                    >
+                      <SettingsIcon className="w-4 h-4" />
+                      Settings
+                    </button>
+                    <button
                       onClick={() => { setShowUserDropdown(false); onLogout?.(); }}
                       className="w-full px-4 py-3 flex items-center gap-2 text-[13px] text-white/80 hover:bg-white/5 transition-colors"
                     >
@@ -262,6 +271,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       {/* Sub-pages */}
       {currentView === "activity" && <ActivityPage />}
       {currentView === "settings" && <SettingsPage onBack={() => setCurrentView("dashboard")} />}
+      {currentView === "teams" && <TeamsPage onBack={() => setCurrentView("dashboard")} />}
       {currentView === "repository" && selectedRepo && <RepositoryDetail repository={selectedRepo} />}
 
       {/* Dashboard Main Content */}
