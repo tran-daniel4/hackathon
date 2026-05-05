@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useState } from "react";
-import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Database, Server } from "lucide-react";
+import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Database, Server, Layers } from "lucide-react";
 
 interface Repository {
   id: string;
@@ -14,7 +14,7 @@ interface RepositoryDetailProps {
   repository: Repository;
 }
 
-type ArchitectureView = "conceptual" | "component" | "operational";
+type ArchitectureView = "context" | "conceptual" | "component" | "operational";
 
 export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   const [currentView, setCurrentView] = useState<ArchitectureView>("component");
@@ -35,12 +35,40 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   ];
 
   const views = {
-    conceptual:  { label: "Conceptual",  description: "Business-level system overview",  icon: LayoutGrid },
-    component:   { label: "Component",   description: "Developer architecture view",     icon: Code },
-    operational: { label: "Operational", description: "DevOps infrastructure view",      icon: SettingsIcon },
+    context:     { label: "System Context", description: "High-level view",               icon: Layers },
+    conceptual:  { label: "Conceptual",     description: "Business-level system overview", icon: LayoutGrid },
+    component:   { label: "Component",      description: "Developer architecture view",   icon: Code },
+    operational: { label: "Operational",    description: "DevOps infrastructure view",    icon: SettingsIcon },
   };
 
   const renderArchitectureDiagram = () => {
+    if (currentView === "context") {
+      return (
+        <div className="space-y-6">
+          <div className="border border-white/10 bg-[#0f0f15]/60 p-12 text-center">
+            <h4 className="text-[16px] mb-4">System Context Diagram</h4>
+            <p className="text-[13px] text-white/60 mb-8">
+              2.5D visualization with animated data flow showing bottlenecks and system interactions
+            </p>
+            <div className="grid grid-cols-3 gap-8">
+              {["External Users", repository.name, "External Services"].map((entity, idx) => (
+                <motion.div
+                  key={entity}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.15 }}
+                  className="border border-cyan-500/30 bg-cyan-500/5 p-8"
+                >
+                  <h5 className="text-[14px] mb-2">{entity}</h5>
+                  <div className="w-full h-px bg-linear-to-r from-transparent via-cyan-500 to-transparent mt-4" />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (currentView === "conceptual") {
       return (
         <div className="space-y-6">
@@ -150,7 +178,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
                 {(Object.keys(views) as ArchitectureView[]).map((viewKey) => {
                   const view = views[viewKey];
                   const Icon = view.icon;
