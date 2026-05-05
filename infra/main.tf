@@ -12,12 +12,20 @@ provider "digitalocean" {
 }
 
 resource "digitalocean_droplet" "dynodocs" {
-  image  = "ubuntu-22-04-x64"
+  image  = "ubuntu-24-04-x64"
   name   = "dynodocs-dev"
   region = "nyc1"
   size   = "s-4vcpu-8gb"
 
-  user_data = file("cloud-init.yaml")
+  user_data = templatefile("cloud-init.yaml.tpl", {
+    jwt_secret_key       = var.jwt_secret_key
+    github_client_id     = var.github_client_id
+    github_client_secret = var.github_client_secret
+    nextauth_secret      = var.nextauth_secret
+    db_user              = var.db_user
+    db_password          = var.db_password
+    allowed_origins      = var.allowed_origins
+  })
 
   ssh_keys = var.ssh_fingerprints
 }
