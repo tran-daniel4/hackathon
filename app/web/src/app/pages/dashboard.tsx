@@ -1,13 +1,15 @@
 "use client";
 
-import { motion } from "motion/react";
-import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon } from "lucide-react";
+import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AddRepositoryModal } from "@/components/AddRepositoryModal";
 import { ActivityPage } from "./ActivityPage";
 import { RepositoryDetail } from "./RepositoryDetail";
+import { SettingsPage } from "./SettingsPage";
+import { TeamsPage } from "./TeamsPage";
 
 interface Repository {
   id: string;
@@ -24,7 +26,7 @@ interface Activity {
   timestamp: string;
 }
 
-type ViewPerspective = "conceptual" | "component" | "operational";
+type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 
 interface DashboardProps {
   onLogout?: () => void;
@@ -72,8 +74,25 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [currentView, setCurrentView] = useState<"dashboard" | "activity" | "repository">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "activity" | "repository" | "settings" | "teams">("dashboard");
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const notificationsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+      if (notificationsDropdownRef.current && !notificationsDropdownRef.current.contains(event.target as Node)) {
+        setShowNotificationsDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleAddRepository = (repo: Repository) => {
     setRepositories((prev) => [...prev, repo]);
@@ -96,6 +115,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   );
 
   const perspectiveConfig = {
+    "system-context": { label: "System Context", description: "High-level view", icon: Home },
     conceptual: { label: "Conceptual", description: "Business view", icon: LayoutGrid },
     component: { label: "Component", description: "Developer view", icon: Code },
     operational: { label: "Operational", description: "DevOps view", icon: SettingsIcon },
@@ -103,6 +123,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const breadcrumbs =
     currentView === "activity" ? ["Home", "Activity"] :
+    currentView === "settings" ? ["Home", "Settings"] :
+    currentView === "teams"    ? ["Home", "Teams"] :
     currentView === "repository" && selectedRepo ? ["Home", "Repositories", selectedRepo.name] :
     ["Home", "Repositories"];
 
@@ -129,28 +151,103 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 onClick={() => setCurrentView("activity")}
                 className={`transition-colors ${currentView === "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
               >Activity</button>
-              <button className="text-white/60 hover:text-white transition-colors">Settings</button>
+              <button
+                onClick={() => setCurrentView("teams")}
+                className={`transition-colors ${currentView === "teams" ? "text-white" : "text-white/60 hover:text-white"}`}
+              >Teams</button>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="relative p-2 hover:bg-white/5 rounded-full transition-colors"
-            >
-              <Bell className="w-5 h-5 text-white/60" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-            </motion.button>
+            <div ref={notificationsDropdownRef} className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                className="relative p-2 hover:bg-white/5 rounded-full transition-colors"
+              >
+                <Bell className="w-5 h-5 text-white/60" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+              </motion.button>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onLogout}
-              className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[14px] font-medium"
-            >
-              {initials}
-            </motion.button>
+              <AnimatePresence>
+                {showNotificationsDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 top-full mt-2 w-80 border border-white/10 bg-[#0f0f15] shadow-xl z-50"
+                  >
+                    <div className="p-4 border-b border-white/10">
+                      <h3 className="text-[14px]">Notifications</h3>
+                      <p className="text-[11px] text-white/50 mt-1">Team notes and updates</p>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {[
+                        { repo: "main-api", user: "Sarah Chen", message: "Added notes on database optimization", time: "5 min ago" },
+                        { repo: "payment-service", user: "Mike Johnson", message: "Flagged bottleneck in queue processing", time: "1 hour ago" },
+                        { repo: "frontend-app", user: "Emma Davis", message: "Updated component architecture notes", time: "3 hours ago" },
+                      ].map((notif, idx) => (
+                        <div key={idx} className="p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors">
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="text-[12px] text-blue-400">{notif.repo}</span>
+                            <span className="text-[10px] text-white/40">{notif.time}</span>
+                          </div>
+                          <p className="text-[13px] mb-1">{notif.user}</p>
+                          <p className="text-[12px] text-white/60">{notif.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3 border-t border-white/10">
+                      <button className="w-full text-[11px] text-white/60 hover:text-white transition-colors uppercase tracking-[0.15em]">
+                        View All
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div ref={userDropdownRef} className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[14px] font-medium"
+              >
+                {initials}
+              </motion.button>
+
+              <AnimatePresence>
+                {showUserDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 top-full mt-2 w-48 border border-white/10 bg-[#0f0f15] shadow-xl z-50"
+                  >
+                    <div className="p-3 border-b border-white/10">
+                      <p className="text-[13px]">{session?.user?.name ?? "User"}</p>
+                      <p className="text-[11px] text-white/50">{session?.user?.email ?? ""}</p>
+                    </div>
+                    <button
+                      onClick={() => { setShowUserDropdown(false); setCurrentView("settings"); }}
+                      className="w-full px-4 py-3 flex items-center gap-2 text-[13px] text-white/80 hover:bg-white/5 transition-colors border-b border-white/5"
+                    >
+                      <SettingsIcon className="w-4 h-4" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => { setShowUserDropdown(false); onLogout?.(); }}
+                      className="w-full px-4 py-3 flex items-center gap-2 text-[13px] text-white/80 hover:bg-white/5 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </nav>
@@ -173,6 +270,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Sub-pages */}
       {currentView === "activity" && <ActivityPage />}
+      {currentView === "settings" && <SettingsPage onBack={() => setCurrentView("dashboard")} />}
+      {currentView === "teams" && <TeamsPage onBack={() => setCurrentView("dashboard")} />}
       {currentView === "repository" && selectedRepo && <RepositoryDetail repository={selectedRepo} />}
 
       {/* Dashboard Main Content */}
@@ -204,7 +303,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <div className="text-[11px] uppercase tracking-[0.15em] text-white/60 mb-4">
                 View Perspective
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {(Object.keys(perspectiveConfig) as ViewPerspective[]).map((key) => {
                   const config = perspectiveConfig[key];
                   const Icon = config.icon;
