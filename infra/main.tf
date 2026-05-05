@@ -15,7 +15,7 @@ resource "digitalocean_droplet" "dynodocs" {
   image  = "ubuntu-24-04-x64"
   name   = "dynodocs-dev"
   region = "nyc1"
-  size   = "s-4vcpu-8gb"
+  size   = "s-8vcpu-32gb"
 
   user_data = templatefile("cloud-init.yaml.tpl", {
     jwt_secret_key       = var.jwt_secret_key

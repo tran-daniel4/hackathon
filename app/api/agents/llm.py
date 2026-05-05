@@ -4,8 +4,8 @@ from core.config import settings
 
 OLLAMA_BASE_URL = settings.ollama_base_url
 
-CODE_MODEL   = "deepseek-coder:6.7b"  # pull with: ollama pull deepseek-coder:6.7b
-REASON_MODEL = "llama3"
+CODE_MODEL   = "deepseek-coder:6.7b"  # technical extraction — code, deps, APIs
+REASON_MODEL = "llama3:13b"           # systems reasoning — architecture, bottlenecks
 
 
 def run_llm(model: str, prompt: str) -> dict:
@@ -18,7 +18,7 @@ def run_llm(model: str, prompt: str) -> dict:
             "format": "json",   # Ollama JSON mode — forces valid JSON output
             "stream": False,
         },
-        timeout=180.0,
+        timeout=600.0,  # 10 min — 6.7B/13B on CPU can be slow
     )
     response.raise_for_status()
 
