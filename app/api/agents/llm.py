@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 import httpx
@@ -31,5 +32,16 @@ def run_llm(model: str, prompt: str) -> dict:
 
     try:
         return json.loads(content)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Model {model} returned non-JSON output: {e}\n\nRaw output:\n{content}")
+    except json.JSONDecodeError:
+        pass
+
+    # Models like deepseek-coder sometimes emit Python dict syntax (single quotes).
+    # ast.literal_eval handles that safely — no arbitrary code execution.
+    try:
+        parsed = ast.literal_eval(content)
+        if isinstance(parsed, dict):
+            return parsed
+    except (ValueError, SyntaxError):
+        pass
+
+    raise ValueError(f"Model {model} returned non-JSON output.\n\nRaw output:\n{content}")
