@@ -1,47 +1,30 @@
-import ast
 import json
-import re
 import httpx
 from core.config import settings
 
 OLLAMA_BASE_URL = settings.ollama_base_url
 
-CODE_MODEL = "deepseek-coder"  
+CODE_MODEL   = "deepseek-coder:6.7b"  # pull with: ollama pull deepseek-coder:6.7b
 REASON_MODEL = "llama3"
 
 
 def run_llm(model: str, prompt: str) -> dict:
-    """Call Ollama and return parsed JSON. Raises ValueError if response is not valid JSON."""
+    """Call Ollama in JSON mode and return parsed JSON."""
     response = httpx.post(
         f"{OLLAMA_BASE_URL}/api/chat",
         json={
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
+            "format": "json",   # Ollama JSON mode — forces valid JSON output
             "stream": False,
         },
-        timeout=120.0,
+        timeout=180.0,
     )
     response.raise_for_status()
 
     content = response.json()["message"]["content"].strip()
 
-    # Strip markdown code fences if the model wrapped the JSON
-    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", content)
-    if fenced:
-        content = fenced.group(1).strip()
-
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
-        pass
-
-    # Models like deepseek-coder sometimes emit Python dict syntax (single quotes).
-    # ast.literal_eval handles that safely — no arbitrary code execution.
-    try:
-        parsed = ast.literal_eval(content)
-        if isinstance(parsed, dict):
-            return parsed
-    except (ValueError, SyntaxError):
-        pass
-
-    raise ValueError(f"Model {model} returned non-JSON output.\n\nRaw output:\n{content}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Model {model} returned invalid JSON even in JSON mode: {e}\n\nRaw output:\n{content}")
