@@ -1,6 +1,9 @@
+"use client";
+
 import { motion } from "motion/react";
 import { useState } from "react";
-import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Database, Server, Layers } from "lucide-react";
+import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Layers } from "lucide-react";
+import { DiagramView } from "@/components/DiagramView";
 
 interface Repository {
   id: string;
@@ -94,48 +97,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
     }
 
     if (currentView === "component") {
-      return (
-        <div className="space-y-6">
-          <div className="grid grid-cols-4 gap-4">
-            {[
-              { name: "Frontend",          icon: LayoutGrid, colorClass: "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10",   iconClass: "text-blue-400" },
-              { name: "API Gateway",       icon: Server,     colorClass: "border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10",   iconClass: "text-cyan-400" },
-              { name: "Backend Services",  icon: Code,       colorClass: "border-green-500/30 bg-green-500/5 hover:bg-green-500/10", iconClass: "text-green-400" },
-              { name: "Database",          icon: Database,   colorClass: "border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/10", iconClass: "text-yellow-400" },
-            ].map((component, idx) => {
-              const Icon = component.icon;
-              return (
-                <motion.div
-                  key={component.name}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className={`border ${component.colorClass} p-6 transition-all cursor-pointer`}
-                >
-                  <Icon className={`w-6 h-6 ${component.iconClass} mb-3 mx-auto`} />
-                  <h4 className="text-[13px] text-center mb-1">{component.name}</h4>
-                  <p className="text-[10px] text-white/40 text-center">Active</p>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          <div className="border border-white/10 bg-[#0f0f15]/60 p-8">
-            <div className="flex items-center justify-between">
-              {["Client", "Gateway", "Service", "DB"].map((node, idx) => (
-                <div key={node} className="flex items-center">
-                  <div className="w-16 h-16 border border-white/20 bg-white/5 flex items-center justify-center">
-                    <span className="text-[11px]">{node}</span>
-                  </div>
-                  {idx < 3 && (
-                    <div className="w-12 h-px bg-gradient-to-r from-blue-500 to-transparent mx-2" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
+      return <DiagramView />;
     }
 
     return (
