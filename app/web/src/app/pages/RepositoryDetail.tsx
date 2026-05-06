@@ -2,8 +2,18 @@
 
 import { motion } from "motion/react";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Layers } from "lucide-react";
 import { DiagramView } from "@/components/DiagramView";
+import type { RawDiagram, ViewId } from "@/components/visualization/types";
+
+const ArchDiagram = dynamic(
+  () =>
+    import("@/components/visualization/ArchDiagram").then(
+      m => ({ default: m.ArchDiagram })
+    ),
+  { ssr: false }
+);
 
 interface Repository {
   id: string;
@@ -19,8 +29,16 @@ interface RepositoryDetailProps {
 
 type ArchitectureView = "context" | "conceptual" | "component" | "operational";
 
+const VIEW_ID_MAP: Record<ArchitectureView, ViewId> = {
+  context:     "system_context",
+  conceptual:  "conceptual",
+  component:   "component",
+  operational: "operational",
+};
+
 export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   const [currentView, setCurrentView] = useState<ArchitectureView>("component");
+  const [diagrams, setDiagrams] = useState<RawDiagram[] | null>(null);
 
   const recentActivity = [
     { id: "1", type: "update",  message: "API endpoint /users optimized",                  time: "5 min ago",  severity: "info" },
@@ -45,83 +63,22 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   };
 
   const renderArchitectureDiagram = () => {
-    if (currentView === "context") {
+    if (diagrams && diagrams.length > 0) {
       return (
-        <div className="space-y-6">
-          <div className="border border-white/10 bg-[#0f0f15]/60 p-12 text-center">
-            <h4 className="text-[16px] mb-4">System Context Diagram</h4>
-            <p className="text-[13px] text-white/60 mb-8">
-              2.5D visualization with animated data flow showing bottlenecks and system interactions
-            </p>
-            <div className="grid grid-cols-3 gap-8">
-              {["External Users", repository.name, "External Services"].map((entity, idx) => (
-                <motion.div
-                  key={entity}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.15 }}
-                  className="border border-cyan-500/30 bg-cyan-500/5 p-8"
-                >
-                  <h5 className="text-[14px] mb-2">{entity}</h5>
-                  <div className="w-full h-px bg-linear-to-r from-transparent via-cyan-500 to-transparent mt-4" />
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (currentView === "conceptual") {
-      return (
-        <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-6">
-            {["User Interface", "Business Logic", "Data Storage"].map((layer, idx) => (
-              <motion.div
-                key={layer}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="border border-blue-500/30 bg-blue-500/5 p-6 text-center"
-              >
-                <h4 className="text-[14px] mb-2">{layer}</h4>
-                <p className="text-[11px] text-white/50">Layer {idx + 1}</p>
-              </motion.div>
-            ))}
-          </div>
-          <div className="border border-white/10 bg-[#0f0f15]/60 p-8 text-center">
-            <p className="text-[13px] text-white/60">High-level business flow visualization</p>
-          </div>
-        </div>
+        <ArchDiagram
+          diagrams={diagrams}
+          viewId={VIEW_ID_MAP[currentView]}
+        />
       );
     }
 
     if (currentView === "component") {
-      return <DiagramView />;
+      return <DiagramView onDiagrams={setDiagrams} />;
     }
 
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-6">
-          {["Load Balancer", "Container Cluster", "Database Cluster", "Monitoring"].map((infra, idx) => (
-            <motion.div
-              key={infra}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              className="border border-purple-500/30 bg-purple-500/5 p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-[14px]">{infra}</h4>
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-              </div>
-              <div className="space-y-2 text-[11px] text-white/50">
-                <div className="flex justify-between"><span>CPU</span><span>42%</span></div>
-                <div className="flex justify-between"><span>Memory</span><span>58%</span></div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+      <div className="flex items-center justify-center h-64 text-white/40 text-[13px] border border-dashed border-white/10">
+        Analyze a repository in the Component view to unlock the {views[currentView].label} diagram
       </div>
     );
   };
@@ -169,6 +126,15 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
               <div className="border border-white/10 bg-black/20 p-8">
                 {renderArchitectureDiagram()}
               </div>
+
+              {diagrams && (
+                <button
+                  onClick={() => setDiagrams(null)}
+                  className="mt-4 self-start text-[11px] text-white/40 hover:text-white/70 transition-colors uppercase tracking-[0.15em] underline underline-offset-2"
+                >
+                  Analyze different project
+                </button>
+              )}
             </div>
 
             {/* System Metrics */}

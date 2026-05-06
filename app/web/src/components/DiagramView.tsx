@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { FolderOpen, Loader2, AlertCircle } from "lucide-react";
+import type { RawDiagram } from "@/components/visualization/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -73,7 +74,12 @@ interface DiagramNode { id: string; label: string; type?: string; layer?: string
 interface DiagramEdge { id: string; source: string; target: string; label?: string; }
 interface AnalyzeResult {
   diagram: { nodes: DiagramNode[]; edges: DiagramEdge[]; annotations: unknown[] };
+  diagrams?: RawDiagram[];
   bottlenecks: unknown; system_design: unknown; repo_analysis: unknown;
+}
+
+interface DiagramViewProps {
+  onDiagrams?: (diagrams: RawDiagram[]) => void;
 }
 
 function toFlowNodes(dnodes: DiagramNode[]): Node[] {
@@ -131,7 +137,7 @@ function toFlowEdges(dedges: DiagramEdge[]): Edge[] {
   }));
 }
 
-export function DiagramView() {
+export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error,  setError]  = useState("");
@@ -186,7 +192,9 @@ export function DiagramView() {
         throw new Error(body.detail ?? res.statusText);
       }
 
-      setResult(await res.json());
+      const json: AnalyzeResult = await res.json();
+      setResult(json);
+      if (onDiagrams && json.diagrams) onDiagrams(json.diagrams);
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

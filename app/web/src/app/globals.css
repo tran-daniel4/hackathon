@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Architecture diagram flow animations */
+@keyframes arch-flow-sync {
+  from { stroke-dashoffset: 16; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes arch-flow-async {
+  from { stroke-dashoffset: 15; }
+  to   { stroke-dashoffset: 0; }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
