@@ -145,7 +145,7 @@ export function DiagramView() {
 
       const files: Record<string, string> = {};
       let totalSize = 0;
-      const MAX = 200_000;
+      const MAX = 50_000;
 
       for (const file of included) {
         if (totalSize >= MAX) break;

@@ -18,7 +18,7 @@ def run_llm(model: str, prompt: str) -> dict:
             "format": "json",   # Ollama JSON mode — forces valid JSON output
             "stream": False,
         },
-        timeout=600.0, 
+        timeout=900.0,
     )
     response.raise_for_status()
 
