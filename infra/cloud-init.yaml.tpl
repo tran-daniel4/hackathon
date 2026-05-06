@@ -53,10 +53,18 @@ runcmd:
       -p 6379:6379 \
       redis:7
 
-  # Install Ollama (non-blocking)
+  # Install Ollama and configure it before pulling models
   - curl -fsSL https://ollama.com/install.sh | sh || true
+  - |
+    mkdir -p /etc/systemd/system/ollama.service.d
+    cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
+    [Service]
+    Environment="OLLAMA_MAX_LOADED_MODELS=1"
+    Environment="OLLAMA_NUM_PARALLEL=1"
+    EOF
+  - systemctl daemon-reload
+  - systemctl restart ollama
   - sleep 5
-  - ollama pull llama3:8b-instruct-q4_K_M || true
   - ollama pull deepseek-coder:6.7b-instruct-q4_K_M || true
 
   # Set up Python venv and install deps

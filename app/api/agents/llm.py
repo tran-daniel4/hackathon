@@ -4,8 +4,8 @@ from core.config import settings
 
 OLLAMA_BASE_URL = settings.ollama_base_url
 
-CODE_MODEL   = "deepseek-coder:6.7b-instruct-q4_K_M"  # technical extraction — code, deps, APIs
-REASON_MODEL = "llama3:8b-instruct-q4_K_M"            # systems reasoning — architecture, bottlenecks
+CODE_MODEL   = "deepseek-coder:6.7b-instruct-q4_K_M"
+REASON_MODEL = CODE_MODEL
 
 
 def run_llm(model: str, prompt: str) -> dict:
@@ -15,8 +15,14 @@ def run_llm(model: str, prompt: str) -> dict:
         json={
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "format": "json",   # Ollama JSON mode — forces valid JSON output
+            "format": "json",
             "stream": False,
+            "keep_alive": "10m",   # keep model in RAM across pipeline stages
+            "options": {
+                "num_ctx": 8192,   # fits 20 KB input (~5 k tokens) + JSON output
+                "num_thread": 4,   # match vCPU count; prevents CPU thrashing
+                "num_batch": 128,  # smaller than default 512; reduces memory spikes
+            },
         },
         timeout=900.0,
     )
