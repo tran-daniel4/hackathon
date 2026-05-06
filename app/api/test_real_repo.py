@@ -15,7 +15,17 @@ TEXT_EXTS  = {
     "py","js","ts","tsx","jsx","go","java","rb","php","cs","cpp","c","h","rs",
     "swift","kt","json","yaml","yml","toml","html","css","scss","sql","sh","md","txt",
 }
-MAX_BYTES = 50_000
+MAX_BYTES  = 20_000
+PER_FILE   = 3_000
+
+PRIORITY_NAMES = {
+    "package.json", "requirements.txt", "go.mod", "go.sum", "Cargo.toml", "pom.xml",
+    "build.gradle", "pyproject.toml", "setup.py",
+    "Dockerfile", "docker-compose.yml", "docker-compose.yaml",
+    "main.py", "app.py", "server.py", "index.ts", "index.js", "server.ts", "server.js",
+    "manage.py", "wsgi.py", "asgi.py", "main.go", "main.ts", "main.js",
+    ".env.example", "terraform.tf", "infra.tf",
+}
 
 
 def should_include(rel_path: str) -> bool:
@@ -27,32 +37,33 @@ def should_include(rel_path: str) -> bool:
 
 
 def load_repo(root: str) -> tuple[str, str]:
-    tree_lines: list[str] = []
-    file_contents: list[str] = []
-    total = 0
+    all_files: list[tuple[str, str]] = []  # (rel_path, abs_path)
 
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-
         rel_dir = os.path.relpath(dirpath, root).replace("\\", "/")
         prefix  = "" if rel_dir == "." else rel_dir + "/"
-
         for fname in filenames:
             rel_path = prefix + fname
-            tree_lines.append(rel_path)
+            all_files.append((rel_path, os.path.join(dirpath, fname)))
 
-            if total >= MAX_BYTES or not should_include(rel_path):
-                continue
+    tree_lines = [rel for rel, _ in all_files]
 
-            abs_path = os.path.join(dirpath, fname)
-            try:
-                text = open(abs_path, encoding="utf-8", errors="replace").read()
-            except OSError:
-                continue
+    # Priority files first so they consume budget before non-essential files
+    all_files.sort(key=lambda x: 0 if os.path.basename(x[0]) in PRIORITY_NAMES else 1)
 
-            chunk = text[: MAX_BYTES - total]
-            file_contents.append(f"### {rel_path}\n{chunk}")
-            total += len(chunk)
+    file_contents: list[str] = []
+    total = 0
+    for rel_path, abs_path in all_files:
+        if total >= MAX_BYTES or not should_include(rel_path):
+            continue
+        try:
+            text = open(abs_path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        chunk = text[: min(PER_FILE, MAX_BYTES - total)]
+        file_contents.append(f"### {rel_path}\n{chunk}")
+        total += len(chunk)
 
     return "\n".join(tree_lines), "\n\n".join(file_contents)
 

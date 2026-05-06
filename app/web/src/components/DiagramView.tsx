@@ -38,6 +38,21 @@ const TEXT_EXTS = new Set([
 ]);
 const SKIP_DIRS = new Set(["node_modules",".git",".venv","__pycache__","dist","build",".next"]);
 
+// Sent first regardless of walk order — highest signal-to-token ratio for architecture analysis
+const PRIORITY_NAMES = new Set([
+  "package.json","requirements.txt","go.mod","go.sum","Cargo.toml","pom.xml",
+  "build.gradle","pyproject.toml","setup.py",
+  "Dockerfile","docker-compose.yml","docker-compose.yaml",
+  "main.py","app.py","server.py","index.ts","index.js","server.ts","server.js",
+  "manage.py","wsgi.py","asgi.py","main.go","main.ts","main.js",
+  ".env.example","terraform.tf","infra.tf",
+]);
+
+function isPriority(path: string): boolean {
+  const fname = path.split("/").pop() ?? "";
+  return PRIORITY_NAMES.has(fname);
+}
+
 function shouldInclude(path: string): boolean {
   const parts = path.split("/");
   if (parts.some(p => SKIP_DIRS.has(p))) return false;
@@ -145,12 +160,17 @@ export function DiagramView() {
 
       const files: Record<string, string> = {};
       let totalSize = 0;
-      const MAX = 50_000;
+      const MAX = 20_000;
+      const PER_FILE = 3_000;
 
-      for (const file of included) {
+      const sorted = [...included].sort((a, b) =>
+        Number(isPriority(b.webkitRelativePath)) - Number(isPriority(a.webkitRelativePath))
+      );
+
+      for (const file of sorted) {
         if (totalSize >= MAX) break;
         const text = await readFileText(file);
-        const chunk = text.slice(0, MAX - totalSize);
+        const chunk = text.slice(0, Math.min(PER_FILE, MAX - totalSize));
         files[file.webkitRelativePath] = chunk;
         totalSize += chunk.length;
       }
