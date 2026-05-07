@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { AnimatePresence } from "motion/react";
+import { AlertCircle } from "lucide-react";
 import { transformView } from "./viewTransformer";
 import { computeLayout } from "./layoutEngine";
 import { DiagramNode } from "./DiagramNode";
@@ -69,8 +70,14 @@ export function ArchDiagram({ diagrams, viewId }: ArchDiagramProps) {
 
   if (!layout) {
     return (
-      <div className="flex items-center justify-center h-64 text-white/30 text-[13px]">
-        No diagram data for this view
+      <div className="flex flex-col items-center justify-center h-64 gap-3 border border-dashed border-white/10 bg-white/[0.01]">
+        <AlertCircle className="w-5 h-5 text-white/20" />
+        <div className="text-[11px] uppercase tracking-[0.2em] text-white/30">
+          {view?.label ?? "This view"} could not be generated
+        </div>
+        <div className="text-[11px] text-white/20">
+          Re-analyze the repository to retry
+        </div>
       </div>
     );
   }
