@@ -1,19 +1,23 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from core.config import settings
 from pipeline.scanner import scan_files
-from pipeline.graph_builder import build_graph
 from pipeline.rules_engine import run_rules
 from pipeline.llm_wrapper import LLMConfig, enrich_issues
 from pipeline.aggregator import aggregate
 from pipeline.llm_view_generator import generate_diagrams_hybrid
+from analyzers.file_index import FileIndex
+from analyzers.orchestrator import AnalyzerOrchestrator
+from graph.compat import graph_facts_to_arch_graph
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 
 class AnalyzeRequest(BaseModel):
-    file_tree: str           # newline-separated paths (informational, not used by scanner)
+    file_tree: str           # newline-separated paths (informational)
     files: dict[str, str]    # webkitRelativePath → file content
 
 
@@ -23,14 +27,27 @@ class AnalyzeResponse(BaseModel):
     bottlenecks: dict
     diagram: dict        # component view — keeps current frontend contract
     diagrams: list[dict] # all 4 views — for future multi-view UI
+    graph_facts: dict    # new — structured evidence graph
 
 
 @router.post("", response_model=AnalyzeResponse)
 async def analyze(body: AnalyzeRequest):
     try:
-        scan     = scan_files(body.files)
-        graph    = build_graph(scan)
-        issues   = run_rules(scan, graph)   # N+1 rule skipped (no local path)
+        # New deterministic analyzer → graph_facts.json
+        file_index = FileIndex(body.files)
+        facts = AnalyzerOrchestrator().run(
+            file_index,
+            repo_meta={
+                "name": "uploaded",
+                "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        graph = graph_facts_to_arch_graph(facts)
+
+        # Keep the old scanner for the LLM layer (env_vars, auth_patterns, etc.)
+        scan = scan_files(body.files)
+
+        issues   = run_rules(scan, graph)
         cfg      = LLMConfig(base_url=settings.ollama_base_url)
         enriched = enrich_issues(issues, graph, config=cfg)
         report   = aggregate(enriched)
@@ -53,4 +70,5 @@ async def analyze(body: AnalyzeRequest):
             "annotations": component.annotations,
         },
         diagrams=[v.model_dump() for v in output.views],
+        graph_facts=facts.model_dump(),
     )
