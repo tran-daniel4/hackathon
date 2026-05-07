@@ -2,10 +2,10 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
 import { Check, X, FolderOpen, Star } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { toast } from "sonner";
+import { useAuth } from "@/components/AuthProvider";
 
 interface Repository {
   id: string;
@@ -34,8 +34,9 @@ interface AddRepositoryModalProps {
 }
 
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
-  const { data: session } = useSession();
-  const githubToken = (session as typeof session & { githubAccessToken?: string })?.githubAccessToken;
+  const { session } = useAuth();
+  const githubToken =
+    (session as { provider_token?: string | null } | null)?.provider_token ?? null;
   const hasGithub = !!githubToken;
 
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);

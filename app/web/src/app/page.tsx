@@ -2,74 +2,26 @@
 
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
-
-function getValidToken(key: string): string | null {
-  const token = localStorage.getItem(key);
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.exp * 1000 > Date.now() ? token : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearTokens() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-}
+import { useAuth } from "@/components/AuthProvider";
 
 export default function Home() {
-  const { status: sessionStatus } = useSession();
+  const { loading, session } = useAuth();
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isCheckingRefresh, setIsCheckingRefresh] = useState(false);
-
-  // Runs after mount so SSR and initial client render are always identical (both false).
-  // setState is deferred into a .then() callback to satisfy react-hooks/set-state-in-effect.
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      if (getValidToken("access_token")) {
-        setIsLoggedIn(true);
-      } else if (localStorage.getItem("refresh_token")) {
-        setIsCheckingRefresh(true);
-      }
-    });
-  }, []);
 
   useEffect(() => {
-    if (!isCheckingRefresh) return;
-    const refreshToken = localStorage.getItem("refresh_token");
+    if (!loading && session) {
+      router.replace("/diagrams");
+    }
+  }, [loading, router, session]);
 
-    fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => {
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
-        router.replace("/diagrams");
-      })
-      .catch(() => clearTokens())
-      .finally(() => setIsCheckingRefresh(false));
-  }, [isCheckingRefresh]);
-
-  if (sessionStatus === "loading" || isCheckingRefresh) return null;
-
-  if (sessionStatus === "authenticated" || isLoggedIn) {
-    router.replace("/diagrams");
+  if (loading) {
     return null;
   }
 
@@ -90,7 +42,7 @@ export default function Home() {
     return (
       <SignUpPage
         onClose={() => setShowSignUp(false)}
-        onSignUp={() => { setShowSignUp(false); router.replace("/diagrams"); }}
+        onSignUp={() => { setShowSignUp(false); }}
         onSwitchToLogin={() => {
           setShowSignUp(false);
           setShowLogin(true);

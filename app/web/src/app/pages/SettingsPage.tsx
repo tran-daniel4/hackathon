@@ -10,7 +10,8 @@ interface SettingsPageProps {
   onBack: () => void;
 }
 
-export function SettingsPage({ onBack }: SettingsPageProps) {
+export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
+  void _onBack;
   const [activeTab, setActiveTab] = useState<"profile" | "notifications" | "teams" | "security">("profile");
 
   const [profileData, setProfileData] = useState({

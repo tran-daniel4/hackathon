@@ -1,16 +1,7 @@
 do_token         = "your_digitalocean_api_token"
 ssh_fingerprints = ["your_fingerprint", "teammate_fingerprint"]
 do_project_name  = "your_project_name"
-
-# Generate: openssl rand -hex 32
-jwt_secret_key       = "your_jwt_secret"
-# Generate: openssl rand -base64 32
-nextauth_secret      = "your_nextauth_secret"
-
-github_client_id     = "your_github_oauth_client_id"
-github_client_secret = "your_github_oauth_client_secret"
-
-# Optional overrides (defaults shown)
-# db_user         = "user"
-# db_password     = "password"
-# allowed_origins = "http://localhost:3000"
+supabase_url                  = "https://your-project-ref.supabase.co"
+supabase_publishable_key      = "your_supabase_publishable_key"
+supabase_database_url         = "postgresql+asyncpg://postgres.your-project-ref:your-db-password@aws-0-your-region.pooler.supabase.com:5432/postgres"
+supabase_alembic_database_url = "postgresql+asyncpg://postgres.your-project-ref:your-db-password@aws-0-your-region.pooler.supabase.com:5432/postgres"

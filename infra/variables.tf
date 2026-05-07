@@ -14,41 +14,28 @@ variable "do_project_name" {
   type        = string
 }
 
-variable "jwt_secret_key" {
-  description = "JWT signing secret — generate with: openssl rand -hex 32"
+variable "supabase_url" {
+  description = "Supabase project URL"
   type        = string
   sensitive   = true
 }
 
-variable "github_client_id" {
-  description = "GitHub OAuth App client ID"
+variable "supabase_publishable_key" {
+  description = "Supabase publishable key for the frontend"
   type        = string
   sensitive   = true
 }
 
-variable "github_client_secret" {
-  description = "GitHub OAuth App client secret"
+variable "supabase_database_url" {
+  description = "Supabase Postgres connection string for the API"
   type        = string
   sensitive   = true
 }
 
-variable "nextauth_secret" {
-  description = "NextAuth secret — generate with: openssl rand -base64 32"
+variable "supabase_alembic_database_url" {
+  description = "Supabase Postgres connection string used by Alembic"
   type        = string
   sensitive   = true
-}
-
-variable "db_user" {
-  description = "Postgres username"
-  type        = string
-  default     = "user"
-}
-
-variable "db_password" {
-  description = "Postgres password"
-  type        = string
-  sensitive   = true
-  default     = "password"
 }
 
 variable "allowed_origins" {

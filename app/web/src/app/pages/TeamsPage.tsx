@@ -28,6 +28,7 @@ interface TeamsPageProps {
 const ROLE_COLOR = { owner: "text-yellow-400", admin: "text-blue-400", member: "text-white/50" } as const;
 
 export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
+  void _onBack;
   const [teams, setTeams] = useState<Team[]>([
     {
       id: "1",

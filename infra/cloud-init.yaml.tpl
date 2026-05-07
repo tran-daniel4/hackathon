@@ -21,33 +21,23 @@ runcmd:
   - rm -rf /opt/dynodocs
   - git clone --branch feature/agents https://github.com/tran-daniel4/DynoDocs.git /opt/dynodocs
 
-  # Write .env
+  # Write shared root .env for frontend-friendly defaults
   - |
-    cat > /opt/dynodocs/app/api/.env << 'EOF'
-    DATABASE_URL=postgresql+asyncpg://${db_user}:${db_password}@localhost:5432/dynodocs
-    ALEMBIC_DATABASE_URL=postgresql+asyncpg://${db_user}:${db_password}@127.0.0.1:5432/dynodocs
+    cat > /opt/dynodocs/.env << 'EOF'
+    NEXT_PUBLIC_API_URL=http://localhost:8000
+    NEXT_PUBLIC_SUPABASE_URL=${supabase_url}
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabase_publishable_key}
+    SUPABASE_URL=${supabase_url}
+    DATABASE_URL=${supabase_database_url}
+    ALEMBIC_DATABASE_URL=${supabase_alembic_database_url}
     REDIS_URL=redis://localhost:6379/0
-    JWT_SECRET_KEY=${jwt_secret_key}
-    ACCESS_TOKEN_EXPIRE_MINUTES=15
-    REFRESH_TOKEN_EXPIRE_MINUTES=60
-    POSTGRES_USER=${db_user}
-    POSTGRES_PASSWORD=${db_password}
-    POSTGRES_DB=dynodocs
-    GITHUB_CLIENT_ID=${github_client_id}
-    GITHUB_CLIENT_SECRET=${github_client_secret}
-    NEXTAUTH_SECRET=${nextauth_secret}
     ALLOWED_ORIGINS=${allowed_origins}
     EOF
 
-  # Start DBs
-  - |
-    docker run -d --name postgres --restart always \
-      -e POSTGRES_USER=${db_user} \
-      -e POSTGRES_PASSWORD=${db_password} \
-      -e POSTGRES_DB=dynodocs \
-      -p 5432:5432 \
-      postgres:15
+  # Write API .env
+  - cp /opt/dynodocs/.env /opt/dynodocs/app/api/.env
 
+  # Start Redis
   - |
     docker run -d --name redis --restart always \
       -p 6379:6379 \
@@ -71,8 +61,7 @@ runcmd:
   - python3 -m venv /opt/dynodocs/app/api/.venv
   - /opt/dynodocs/app/api/.venv/bin/pip install -r /opt/dynodocs/app/api/requirements.txt
 
-  # Wait for Postgres to be ready, then run migrations
-  - until docker exec postgres pg_isready -U ${db_user} > /dev/null 2>&1; do sleep 2; done
+  # Run migrations against Supabase Postgres
   - cd /opt/dynodocs/app/api && /opt/dynodocs/app/api/.venv/bin/alembic upgrade head
 
   # Start API

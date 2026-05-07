@@ -2,16 +2,16 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useRef, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut, Users } from "lucide-react";
+import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { AddRepositoryModal } from "@/components/AddRepositoryModal";
 import { ActivityPage } from "./ActivityPage";
 import { RepositoryDetail } from "./RepositoryDetail";
 import { SettingsPage } from "./SettingsPage";
 import { TeamsPage } from "./TeamsPage";
+import { useAuth } from "@/components/AuthProvider";
 
 interface Repository {
   id: string;
@@ -31,12 +31,13 @@ interface Activity {
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 
 export function Dashboard() {
-  const { data: session } = useSession();
+  const { supabase, user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const initials = session?.user?.name
+  const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? "User";
+  const initials = fullName
     ?.split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase() ?? "?";
@@ -85,14 +86,16 @@ export function Dashboard() {
 
   // Reset sub-views when the URL changes (e.g. browser back while viewing a repo)
   useEffect(() => {
-    setSubView(null);
-    setSelectedRepo(null);
+    Promise.resolve().then(() => {
+      setSubView(null);
+      setSelectedRepo(null);
+    });
   }, [pathname]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    signOut({ redirect: false });
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     router.replace("/");
   };
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -232,7 +235,7 @@ export function Dashboard() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[14px] font-medium"
+                      className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[14px] font-medium"
               >
                 {initials}
               </motion.button>
@@ -246,8 +249,8 @@ export function Dashboard() {
                     className="absolute right-0 top-full mt-2 w-48 border border-white/10 bg-[#0f0f15] shadow-xl z-50"
                   >
                     <div className="p-3 border-b border-white/10">
-                      <p className="text-[13px]">{session?.user?.name ?? "User"}</p>
-                      <p className="text-[11px] text-white/50">{session?.user?.email ?? ""}</p>
+                      <p className="text-[13px]">{fullName}</p>
+                      <p className="text-[11px] text-white/50">{user?.email ?? ""}</p>
                     </div>
                     <button
                       onClick={() => { setShowUserDropdown(false); setSubView("settings"); }}

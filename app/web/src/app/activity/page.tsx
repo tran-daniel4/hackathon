@@ -2,30 +2,22 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { Dashboard } from "@/app/pages/dashboard";
-
-function getValidToken(key: string): string | null {
-  const token = localStorage.getItem(key);
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.exp * 1000 > Date.now() ? token : null;
-  } catch {
-    return null;
-  }
-}
+import { useAuth } from "@/components/AuthProvider";
 
 export default function ActivityPage() {
   const router = useRouter();
-  const { status } = useSession();
+  const { loading, session } = useAuth();
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (status === "authenticated") return;
-    if (getValidToken("access_token") || localStorage.getItem("refresh_token")) return;
-    router.replace("/");
-  }, [status, router]);
+    if (!loading && !session) {
+      router.replace("/");
+    }
+  }, [loading, router, session]);
+
+  if (loading || !session) {
+    return null;
+  }
 
   return <Dashboard />;
 }

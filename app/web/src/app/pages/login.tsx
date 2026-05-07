@@ -1,12 +1,10 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { signIn } from "next-auth/react";
 import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, ArrowRight } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { useAuth } from "@/components/AuthProvider";
 
 interface LoginPageProps {
   onClose?: () => void;
@@ -15,6 +13,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps) {
+  const { supabase } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,37 +24,43 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
     e.preventDefault();
     setIsLoading(true);
     try {
-      if (isSignUp) {
-        const res = await fetch(`${API_URL}/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, full_name: name, password }),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || "Registration failed");
-        }
-        const data = await res.json();
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
-      } else {
-        const form = new URLSearchParams();
-        form.append("username", email);
-        form.append("password", password);
-        const res = await fetch(`${API_URL}/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: form,
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || "Login failed");
-        }
-        const data = await res.json();
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
+      if (!supabase) {
+        throw new Error("Supabase auth is not configured yet.");
       }
-      onLogin?.();
+
+      if (isSignUp) {
+        const { error, data } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: name },
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.session) {
+          onLogin?.();
+          return;
+        }
+
+        toast.success("Check your email to verify your account, then sign in.");
+        onClose?.();
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        onLogin?.();
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -63,8 +68,23 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
     }
   };
 
-  const handleGithubLogin = () => {
-    signIn("github", { callbackUrl: "/auth/callback" });
+  const handleGithubLogin = async () => {
+    if (!supabase) {
+      toast.error("Supabase auth is not configured yet.");
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: "read:user user:email public_repo",
+      },
+    });
+
+    if (error) {
+      toast.error(error.message);
+    }
   };
 
   return (
