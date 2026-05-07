@@ -30,8 +30,10 @@ interface Activity {
 
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 export function Dashboard() {
-  const { supabase, user } = useAuth();
+  const { supabase, user, session } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? "User";
@@ -42,29 +44,34 @@ export function Dashboard() {
     .slice(0, 2)
     .toUpperCase() ?? "?";
 
-  const [repositories, setRepositories] = useState<Repository[]>([
-    {
-      id: "1",
-      name: "main-api",
-      url: "github.com/company/main-api",
-      lastUpdated: "2 hours ago",
-      componentsCount: 12
-    },
-    {
-      id: "2",
-      name: "frontend-app",
-      url: "github.com/company/frontend-app",
-      lastUpdated: "5 hours ago",
-      componentsCount: 8
-    },
-    {
-      id: "3",
-      name: "payment-service",
-      url: "github.com/company/payment-service",
-      lastUpdated: "1 day ago",
-      componentsCount: 6
-    }
-  ]);
+  const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [reposLoading, setReposLoading] = useState(true);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    setReposLoading(true);
+    fetch(`${API_BASE}/repos`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load repositories");
+        return r.json();
+      })
+      .then((data: Array<{ id: string; name: string; url: string; lastUpdated: string; componentsCount: number }>) => {
+        setRepositories(
+          data.map((r) => ({
+            id: String(r.id),
+            name: r.name,
+            url: r.url,
+            lastUpdated: new Date(r.lastUpdated).toLocaleDateString(),
+            componentsCount: r.componentsCount ?? 0,
+          }))
+        );
+      })
+      .catch(() => toast.error("Failed to load repositories"))
+      .finally(() => setReposLoading(false));
+  }, [accessToken]);
 
   const [activities] = useState<Activity[]>([
     { id: "1", type: "update", message: "Database schema updated in main-api", timestamp: "10 min ago" },
@@ -127,9 +134,19 @@ export function Dashboard() {
     toast.info(`Editing ${repo.name}`);
   };
 
-  const handleDeleteRepository = (id: string) => {
-    setRepositories(repositories.filter(r => r.id !== id));
-    toast.success("Repository removed");
+  const handleDeleteRepository = async (id: string) => {
+    setRepositories((prev) => prev.filter((r) => r.id !== id));
+    try {
+      const res = await fetch(`${API_BASE}/repos/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Repository removed");
+    } catch {
+      toast.error("Failed to remove repository");
+      setRepositories((prev) => [...prev]);
+    }
   };
 
   const filteredRepositories = repositories.filter(repo =>
@@ -305,7 +322,7 @@ export function Dashboard() {
               <div>
                 <h2 className="text-[clamp(1.8rem,3vw,2.5rem)] mb-2 leading-tight">Your Diagrams</h2>
                 <p className="text-[14px] text-white/60">
-                  {repositories.length} {repositories.length === 1 ? "repository" : "repositories"} mapped
+                  {reposLoading ? "Loading…" : `${repositories.length} ${repositories.length === 1 ? "repository" : "repositories"} mapped`}
                 </p>
               </div>
 
@@ -366,7 +383,11 @@ export function Dashboard() {
 
             {/* Repository List */}
             <div className="space-y-4">
-              {filteredRepositories.length === 0 ? (
+              {reposLoading ? (
+                <div className="border border-white/10 bg-[#0f0f15]/60 p-12 text-center">
+                  <p className="text-white/50">Loading repositories…</p>
+                </div>
+              ) : filteredRepositories.length === 0 ? (
                 <div className="border border-white/10 bg-[#0f0f15]/60 p-12 text-center">
                   <p className="text-white/50">No repositories found</p>
                 </div>

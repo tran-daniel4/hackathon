@@ -33,6 +33,29 @@ interface AddRepositoryModalProps {
   onAdd: (repo: Repository) => void;
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+async function saveRepo(
+  name: string,
+  url: string,
+  accessToken: string,
+): Promise<Repository> {
+  const res = await fetch(`${API_BASE}/repos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ name, url }),
+  });
+  if (!res.ok) throw new Error("Failed to save repository");
+  const data = await res.json();
+  return {
+    id: String(data.id),
+    name: data.name,
+    url: data.url,
+    lastUpdated: new Date(data.lastUpdated).toLocaleDateString(),
+    componentsCount: data.componentsCount ?? 0,
+  };
+}
+
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
   const { session } = useAuth();
   const githubToken =
@@ -81,33 +104,32 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
     });
   };
 
-  const handleConfirm = () => {
-    filteredRepos
-      .filter((r) => selectedIds.has(r.id))
-      .forEach((repo) => {
-        onAdd({
-          id: String(repo.id),
-          name: repo.name,
-          url: repo.full_name,
-          lastUpdated: new Date(repo.pushed_at).toLocaleDateString(),
-          componentsCount: 0,
-        });
-      });
-    onClose();
+  const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
+
+  const handleConfirm = async () => {
+    const selected = filteredRepos.filter((r) => selectedIds.has(r.id));
+    try {
+      for (const repo of selected) {
+        const saved = await saveRepo(repo.name, repo.html_url, accessToken);
+        onAdd(saved);
+      }
+      onClose();
+    } catch {
+      toast.error("Failed to save repositories");
+    }
   };
 
-  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const folderName = files[0].webkitRelativePath.split("/")[0];
-    onAdd({
-      id: `local-${Date.now()}`,
-      name: folderName,
-      url: folderName,
-      lastUpdated: "just now",
-      componentsCount: 0,
-    });
-    onClose();
+    try {
+      const saved = await saveRepo(folderName, folderName, accessToken);
+      onAdd(saved);
+      onClose();
+    } catch {
+      toast.error("Failed to save repository");
+    }
   };
 
   const filteredRepos = githubRepos.filter(
