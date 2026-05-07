@@ -1,6 +1,6 @@
-import { motion } from "motion/react";
-import { useState } from "react";
-import { AlertCircle, Info, AlertTriangle, CheckCircle, Filter, Search } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Info, AlertTriangle, CheckCircle, ChevronDown, Filter, Search } from "lucide-react";
 
 interface Activity {
   id: string;
@@ -12,9 +12,29 @@ interface Activity {
   details?: string;
 }
 
+const FILTER_OPTIONS = [
+  { value: "all",      label: "All Events" },
+  { value: "critical", label: "Critical" },
+  { value: "warning",  label: "Warnings" },
+  { value: "success",  label: "Success" },
+  { value: "info",     label: "Info" },
+];
+
 export function ActivityPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const activities: Activity[] = [
     {
@@ -182,19 +202,39 @@ export function ActivityPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 border border-white/10 bg-white/5 px-4">
-            <Filter className="w-4 h-4 text-white/40" />
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="bg-transparent py-3 text-[14px] text-white focus:outline-none"
+          <div ref={filterRef} className="relative">
+            <button
+              onClick={() => setFilterOpen(o => !o)}
+              className="flex items-center gap-2 border border-white/10 bg-white/5 px-4 py-3 text-[14px] text-white hover:bg-white/10 transition-colors min-w-[160px] justify-between"
             >
-              <option value="all">All Events</option>
-              <option value="critical">Critical</option>
-              <option value="warning">Warnings</option>
-              <option value="success">Success</option>
-              <option value="info">Info</option>
-            </select>
+              <span className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-white/40" />
+                {FILTER_OPTIONS.find(o => o.value === filterType)?.label}
+              </span>
+              <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            <AnimatePresence>
+              {filterOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-1 w-full border border-white/10 bg-[#0f0f15] z-50"
+                >
+                  {FILTER_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setFilterType(opt.value); setFilterOpen(false); }}
+                      className={`w-full text-left px-4 py-3 text-[13px] transition-colors hover:bg-white/5 ${filterType === opt.value ? "text-white" : "text-white/50"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
