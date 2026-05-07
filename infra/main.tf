@@ -18,6 +18,8 @@ resource "digitalocean_droplet" "dynodocs" {
   size   = "s-4vcpu-8gb"
 
   user_data = templatefile("cloud-init.yaml.tpl", {
+    repo_url                      = var.repo_url
+    repo_branch                   = var.repo_branch
     supabase_url                  = var.supabase_url
     supabase_publishable_key      = var.supabase_publishable_key
     supabase_database_url         = var.supabase_database_url

@@ -1,7 +1,10 @@
 do_token         = "your_digitalocean_api_token"
 ssh_fingerprints = ["your_fingerprint", "teammate_fingerprint"]
 do_project_name  = "your_project_name"
+repo_url         = "https://github.com/your-org/your-repo.git"
+repo_branch      = "main"
 supabase_url                  = "https://your-project-ref.supabase.co"
 supabase_publishable_key      = "your_supabase_publishable_key"
 supabase_database_url         = "postgresql+asyncpg://postgres.your-project-ref:your-db-password@aws-0-your-region.pooler.supabase.com:5432/postgres"
 supabase_alembic_database_url = "postgresql+asyncpg://postgres.your-project-ref:your-db-password@aws-0-your-region.pooler.supabase.com:5432/postgres"
+allowed_origins               = "http://localhost:3000"

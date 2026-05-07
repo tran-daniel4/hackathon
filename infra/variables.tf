@@ -14,6 +14,17 @@ variable "do_project_name" {
   type        = string
 }
 
+variable "repo_url" {
+  description = "Git repository URL to deploy onto the droplet"
+  type        = string
+}
+
+variable "repo_branch" {
+  description = "Git branch to deploy onto the droplet"
+  type        = string
+  default     = "main"
+}
+
 variable "supabase_url" {
   description = "Supabase project URL"
   type        = string

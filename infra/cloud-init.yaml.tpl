@@ -10,7 +10,9 @@ runcmd:
 
   # Install packages
   - apt-get update -y
-  - apt-get install -y git curl docker.io python3-pip python3-venv
+  - apt-get install -y git curl docker.io python3-pip python3-venv build-essential
+  - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  - apt-get install -y nodejs
 
   # Enable and start Docker
   - systemctl enable docker
@@ -19,23 +21,47 @@ runcmd:
 
   # Clone repo
   - rm -rf /opt/dynodocs
-  - git clone --branch feature/agents https://github.com/tran-daniel4/DynoDocs.git /opt/dynodocs
+  - git clone --branch ${repo_branch} ${repo_url} /opt/dynodocs
+
+  # Derive the droplet's public URLs for frontend/API wiring
+  - |
+    PUBLIC_IP="$(curl -fsSL http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)"
+    FRONTEND_ORIGIN="http://${PUBLIC_IP}:3000"
+    API_PUBLIC_URL="http://${PUBLIC_IP}:8000"
+    if [ -n "${allowed_origins}" ]; then
+      COMBINED_ALLOWED_ORIGINS="${allowed_origins},${FRONTEND_ORIGIN}"
+    else
+      COMBINED_ALLOWED_ORIGINS="${FRONTEND_ORIGIN}"
+    fi
+    printf 'PUBLIC_IP=%s\nFRONTEND_ORIGIN=%s\nAPI_PUBLIC_URL=%s\nCOMBINED_ALLOWED_ORIGINS=%s\n' \
+      "${PUBLIC_IP}" "${FRONTEND_ORIGIN}" "${API_PUBLIC_URL}" "${COMBINED_ALLOWED_ORIGINS}" \
+      > /opt/dynodocs/.runtime-env
 
   # Write shared root .env for frontend-friendly defaults
   - |
-    cat > /opt/dynodocs/.env << 'EOF'
-    NEXT_PUBLIC_API_URL=http://localhost:8000
+    . /opt/dynodocs/.runtime-env
+    cat > /opt/dynodocs/.env <<EOF
+    NEXT_PUBLIC_API_URL=${API_PUBLIC_URL}
     NEXT_PUBLIC_SUPABASE_URL=${supabase_url}
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabase_publishable_key}
     SUPABASE_URL=${supabase_url}
     DATABASE_URL=${supabase_database_url}
     ALEMBIC_DATABASE_URL=${supabase_alembic_database_url}
     REDIS_URL=redis://localhost:6379/0
-    ALLOWED_ORIGINS=${allowed_origins}
+    ALLOWED_ORIGINS=${COMBINED_ALLOWED_ORIGINS}
     EOF
 
   # Write API .env
   - cp /opt/dynodocs/.env /opt/dynodocs/app/api/.env
+
+  # Write frontend production env
+  - |
+    . /opt/dynodocs/.runtime-env
+    cat > /opt/dynodocs/app/web/.env.production <<EOF
+    NEXT_PUBLIC_API_URL=${API_PUBLIC_URL}
+    NEXT_PUBLIC_SUPABASE_URL=${supabase_url}
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabase_publishable_key}
+    EOF
 
   # Start Redis
   - |
@@ -61,6 +87,10 @@ runcmd:
   - python3 -m venv /opt/dynodocs/app/api/.venv
   - /opt/dynodocs/app/api/.venv/bin/pip install -r /opt/dynodocs/app/api/requirements.txt
 
+  # Install frontend dependencies and build the app
+  - cd /opt/dynodocs/app/web && npm ci
+  - cd /opt/dynodocs/app/web && npm run build
+
   # Run migrations against Supabase Postgres
   - cd /opt/dynodocs/app/api && /opt/dynodocs/app/api/.venv/bin/alembic upgrade head
 
@@ -69,3 +99,8 @@ runcmd:
     nohup /opt/dynodocs/app/api/.venv/bin/uvicorn main:app \
       --app-dir /opt/dynodocs/app/api \
       --host 0.0.0.0 --port 8000 > /var/log/api.log 2>&1 &
+
+  # Start frontend
+  - |
+    cd /opt/dynodocs/app/web && nohup npm run start -- --hostname 0.0.0.0 --port 3000 \
+      > /var/log/web.log 2>&1 &
