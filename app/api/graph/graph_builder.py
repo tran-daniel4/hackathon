@@ -55,6 +55,16 @@ class GraphBuilder:
             id_remap[ev.id] = new_id
             final_evidence.append(ev.model_copy(update={"id": new_id}))
 
+        for edge in edges.values():
+            for node_id in (edge.src, edge.dst):
+                if node_id not in nodes:
+                    nodes[node_id] = NodeFact(
+                        id=node_id,
+                        type="unknown",
+                        name=node_id.replace("-", " ").title(),
+                        confidence="inferred",
+                    )
+
         def remap_ids(ids: list[str]) -> list[str]:
             return [id_remap.get(eid, eid) for eid in ids]
 

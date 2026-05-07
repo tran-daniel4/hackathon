@@ -16,8 +16,13 @@ _BASE_URL_RE = re.compile(
     r'(https?://([a-zA-Z0-9.-]+))',
     re.IGNORECASE,
 )
+_CS_HTTP_CALL_RE = re.compile(
+    r'\b(?:Get|Post|Put|Delete|Patch)Async\s*\(\s*["\']'
+    r'(https?://([a-zA-Z0-9.-]+))',
+    re.IGNORECASE,
+)
 
-_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx"})
+_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs"})
 _IGNORE_DOMAINS = {"localhost", "127.0.0.1", "example.com", "0.0.0.0"}
 
 
@@ -44,7 +49,7 @@ class HttpClientExtractor(Analyzer):
             lines = content.splitlines()
 
             for lineno, line in enumerate(lines, start=1):
-                for pattern in (_HTTP_CALL_RE, _BASE_URL_RE):
+                for pattern in (_HTTP_CALL_RE, _BASE_URL_RE, _CS_HTTP_CALL_RE):
                     m = pattern.search(line)
                     if not m:
                         continue

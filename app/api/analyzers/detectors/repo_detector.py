@@ -4,6 +4,7 @@ from collections import Counter
 
 from analyzers.base import Analyzer
 from analyzers.file_index import FileIndex
+from analyzers.extractors._helpers import infer_service_name
 from graph.models import GraphFactPatch, NodeFact, Evidence, WarningFact, make_node_id
 
 
@@ -20,7 +21,8 @@ _LANG_MAP: dict[str, str] = {
 _DEP_FILENAMES = {
     "requirements.txt", "package.json", "pom.xml", "go.mod",
     "Gemfile", "composer.json", "Cargo.toml", "build.gradle",
-    "pyproject.toml", "Pipfile",
+    "pyproject.toml", "Pipfile", "Directory.Packages.props",
+    "Directory.Build.props", "Directory.Build.targets",
 }
 
 _FRAMEWORKS: list[tuple[str, list[tuple[str, str]]]] = [
@@ -42,6 +44,10 @@ _FRAMEWORKS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Laravel",         [("composer.json", '"laravel/framework"')]),
     ("Prisma",          [("package.json", '"prisma"')]),
     ("SQLAlchemy",      [("requirements.txt", "sqlalchemy"), ("pyproject.toml", "sqlalchemy")]),
+    ("ASP.NET Core",    [(".csproj", "Microsoft.NET.Sdk.Web"), (".csproj", "Microsoft.AspNetCore"), ("Program.cs", "WebApplication.CreateBuilder")]),
+    (".NET Aspire",     [(".csproj", "Aspire.Hosting"), ("AppHost.cs", "DistributedApplication")]),
+    ("Entity Framework Core", [(".csproj", "Microsoft.EntityFrameworkCore"), (".csproj", "Npgsql.EntityFrameworkCore")]),
+    ("Blazor",          [(".csproj", "Microsoft.AspNetCore.Components.WebAssembly")]),
 ]
 
 _CONTAINER_DIRS = {"services", "apps", "packages", "modules", "microservices"}
@@ -50,6 +56,7 @@ _ENTRY_FILES = {
     "main.py", "app.py", "server.py", "wsgi.py", "asgi.py",
     "index.js", "index.ts", "server.js", "server.ts", "app.js",
     "Main.java", "Application.java", "main.go", "main.rb",
+    "Program.cs", "Startup.cs", "AppHost.cs",
 }
 
 _CICD_PATTERNS: list[tuple[str, str]] = [
@@ -102,7 +109,12 @@ class RepoDetector(Analyzer):
         framework_by_service: dict[str, list[tuple[str, str, str]]] = {s: [] for s in service_dirs}
         for framework, checks in _FRAMEWORKS:
             for filename, needle in checks:
-                for path in file_index.find_by_name(filename):
+                candidate_paths = (
+                    [p for p in file_index.paths if p.endswith(filename)]
+                    if filename.startswith(".")
+                    else file_index.find_by_name(filename)
+                )
+                for path in candidate_paths:
                     content = file_index.get_content(path) or ""
                     if needle and needle.lower() not in content.lower():
                         continue
@@ -154,7 +166,7 @@ class RepoDetector(Analyzer):
                             break
 
             # Determine node type: frontend if framework is React/Vue/Angular/Next.js
-            _frontend_frameworks = {"React", "Vue.js", "Angular", "Next.js"}
+            _frontend_frameworks = {"React", "Vue.js", "Angular", "Next.js", "Blazor"}
             node_type = "client" if dominant_fw in _frontend_frameworks else "service"
 
             # Add framework as tag
@@ -199,6 +211,10 @@ class RepoDetector(Analyzer):
             if len(parts) >= 2 and parts[0].lower() in _CONTAINER_DIRS:
                 services.add(parts[1])
                 continue
+            inferred = infer_service_name(path)
+            if inferred and inferred != parts[0]:
+                services.add(inferred)
+                continue
             if len(parts) >= 2:
                 top = parts[0]
                 base = _basename(path)
@@ -213,6 +229,9 @@ class RepoDetector(Analyzer):
         return sorted(services)
 
     def _file_to_service(self, path: str, service_dirs: list[str]) -> str | None:
+        inferred = infer_service_name(path)
+        if inferred in service_dirs:
+            return inferred
         parts = _parts(path)
         if not parts:
             return None

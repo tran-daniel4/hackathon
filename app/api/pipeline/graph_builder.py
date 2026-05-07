@@ -40,14 +40,15 @@ class ArchGraph(BaseModel):
 # ── Classification tables ──────────────────────────────────────────────────────
 
 _CACHE_DBS       = {"Redis", "Memcached"}
-_FRONTEND_FWS    = {"React", "Next.js", "Vue.js", "Angular", "Nuxt.js", "Svelte"}
+_FRONTEND_FWS    = {"React", "Next.js", "Vue.js", "Angular", "Nuxt.js", "Svelte", "Blazor"}
 _BACKEND_FWS     = {"FastAPI", "Django", "Flask", "Express", "NestJS", "Fastify",
-                     "Spring Boot", "Ruby on Rails", "Laravel"}
+                     "Spring Boot", "Ruby on Rails", "Laravel", "ASP.NET Core", ".NET Aspire"}
 _QUEUE_FWS       = {"Celery", "RabbitMQ", "Kafka"}
 
 # Used to assign per-service edges in multi-service repos from dep file contents
 _DB_DEP_INDICATORS: dict[str, list[str]] = {
     "PostgreSQL":    ["psycopg2", "asyncpg", "postgresql", "pg"],
+    "SQL Server":    ["sqlclient", "usesqlserver"],
     "MySQL":         ["pymysql", "mysqlclient", "mysql", "mysql2"],
     "MongoDB":       ["pymongo", "motor", "mongodb", "mongoose"],
     "SQLite":        ["sqlite3", "sqlite"],

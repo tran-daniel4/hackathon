@@ -18,6 +18,14 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
         r"new\s+Pool\s*\(",
         r"postgresql://",
         r"postgres://",
+        r"\bNpgsql\b",
+        r"UseNpgsql\s*\(",
+        r"Aspire\.Hosting\.PostgreSQL",
+    ]),
+    ("SQL Server", [
+        r"Microsoft\.Data\.SqlClient",
+        r"UseSqlServer\s*\(",
+        r"Aspire\.Hosting\.SqlServer",
     ]),
     ("MySQL", [
         r"pymysql\.connect\s*\(",
@@ -36,6 +44,8 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
     ("SQLite", [
         r"sqlite3\.connect\s*\(",
         r"sqlite:///",
+        r"Microsoft\.Data\.Sqlite",
+        r"UseSqlite\s*\(",
     ]),
     ("Elasticsearch", [
         r"elasticsearch\.Elasticsearch\s*\(",

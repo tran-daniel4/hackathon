@@ -120,6 +120,10 @@ _FRAMEWORKS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Laravel",         [("composer.json", '"laravel/framework"')]),
     ("Prisma",          [("package.json", '"prisma"')]),
     ("SQLAlchemy",      [("requirements.txt", "sqlalchemy"), ("pyproject.toml", "sqlalchemy")]),
+    ("ASP.NET Core",    [(".csproj", "Microsoft.NET.Sdk.Web"), (".csproj", "Microsoft.AspNetCore"), ("Program.cs", "WebApplication.CreateBuilder")]),
+    (".NET Aspire",     [(".csproj", "Aspire.Hosting"), ("AppHost.cs", "DistributedApplication")]),
+    ("Entity Framework Core", [(".csproj", "Microsoft.EntityFrameworkCore"), (".csproj", "Npgsql.EntityFrameworkCore")]),
+    ("Blazor",          [(".csproj", "Microsoft.AspNetCore.Components.WebAssembly")]),
 ]
 
 
@@ -128,7 +132,8 @@ _FRAMEWORKS: list[tuple[str, list[tuple[str, str]]]] = [
 _DEP_FILENAMES = {
     "requirements.txt", "package.json", "pom.xml", "go.mod",
     "Gemfile", "composer.json", "Cargo.toml", "build.gradle",
-    "pyproject.toml", "Pipfile",
+    "pyproject.toml", "Pipfile", "Directory.Packages.props",
+    "Directory.Build.props", "Directory.Build.targets",
 }
 
 
@@ -140,6 +145,10 @@ _DATABASES: list[tuple[str, list[str]]] = [
     ("MongoDB",       ["pymongo", "motor", "mongodb://", "mongoose"]),
     ("SQLite",        ["sqlite3", "sqlite:///"]),
     ("Redis",         ["redis://", "aioredis", "import redis", '"redis"']),
+    ("PostgreSQL",    ["npgsql", "Aspire.Hosting.PostgreSQL"]),
+    ("SQL Server",    ["Microsoft.Data.SqlClient", "UseSqlServer", "Aspire.Hosting.SqlServer"]),
+    ("SQLite",        ["Microsoft.Data.Sqlite", "UseSqlite"]),
+    ("Redis",         ["StackExchange.Redis", "Aspire.Hosting.Redis"]),
     ("Elasticsearch", ["elasticsearch", "from elastic"]),
     ("DynamoDB",      ["dynamodb", "boto3"]),
     ("Cassandra",     ["cassandra-driver", "cassandra"]),
@@ -167,6 +176,8 @@ _EXTERNAL_APIS: list[tuple[str, list[str]]] = [
     ("Deepgram",      ["deepgram", '"@deepgram"']),
     ("Mailgun",       ["mailgun"]),
     ("Cloudinary",    ["cloudinary"]),
+    ("Keycloak",      ["Keycloak", "Keycloak.AuthServices"]),
+    ("Azure",         ["Azure.", "Azure.Identity", "Azure.Storage"]),
 ]
 
 
@@ -224,17 +235,48 @@ _API_PATTERNS: list[_ApiPattern] = [
         method_group=None,
         path_group=1,
     ),
+    _ApiPattern(
+        extensions=frozenset({".cs"}),
+        regex=re.compile(
+            r'\bMap(Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']+)["\']',
+            re.IGNORECASE,
+        ),
+        method_group=1,
+        path_group=2,
+    ),
+    _ApiPattern(
+        extensions=frozenset({".cs"}),
+        regex=re.compile(
+            r'\[(HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch|Route)\s*\(\s*["\']([^"\']+)["\']',
+            re.IGNORECASE,
+        ),
+        method_group=1,
+        path_group=2,
+    ),
 ]
 
 
 # ── Service detection helpers ──────────────────────────────────────────────────
 
 _CONTAINER_DIRS = {"services", "apps", "packages", "modules", "microservices"}
+_PROJECTISH_NAMES = {"api", "server", "backend", "frontend", "web", "apphost", "service"}
 _ENTRY_FILES = {
     "main.py", "app.py", "server.py", "wsgi.py", "asgi.py",
     "index.js", "index.ts", "server.js", "server.ts", "app.js",
     "Main.java", "Application.java", "main.go", "main.rb",
+    "Program.cs", "Startup.cs", "AppHost.cs",
 }
+
+
+def _looks_like_project_dir(name: str) -> bool:
+    lower = name.lower()
+    return (
+        "." in name
+        or "-" in name
+        or "_" in name
+        or lower in _PROJECTISH_NAMES
+        or lower.endswith(("api", "service", "server", "apphost", "worker"))
+    )
 
 
 # ── Env var provider patterns (new) ───────────────────────────────────────────
@@ -259,6 +301,7 @@ _ENV_VAR_PROVIDERS: list[tuple[str, re.Pattern]] = [
     ("Cloudinary", re.compile(r'\b(CLOUDINARY_[A-Z_]+)\b')),
     ("Sentry",     re.compile(r'\b(SENTRY_[A-Z_]+)\b')),
     ("Datadog",    re.compile(r'\b(DD_[A-Z_]+|DATADOG_[A-Z_]+)\b')),
+    ("Keycloak",   re.compile(r'\b(KEYCLOAK_[A-Z_]+)\b')),
 ]
 
 # ── HTTP client call patterns (new) ───────────────────────────────────────────
@@ -270,6 +313,11 @@ _HTTP_CALL_RE = re.compile(
 )
 _BASE_URL_RE = re.compile(
     r'(?:BASE_URL|base_url|API_URL|api_url)\s*[=:]\s*[f"\']+\s*'
+    r'(https?://([a-zA-Z0-9.-]+))',
+    re.I,
+)
+_CS_HTTP_CALL_RE = re.compile(
+    r'\b(?:Get|Post|Put|Delete|Patch)Async\s*\(\s*["\']'
     r'(https?://([a-zA-Z0-9.-]+))',
     re.I,
 )
@@ -312,6 +360,8 @@ _OBSERVABILITY: list[tuple[str, list[str]]] = [
     ("loguru",            ["from loguru"]),
     ("jaeger",            ["jaeger", "opentracing"]),
     ("newrelic",          ["newrelic"]),
+    ("opentelemetry-dotnet", ["OpenTelemetry", "AddOpenTelemetry"]),
+    ("serilog",             ["Serilog", "UseSerilog"]),
 ]
 
 # ── Auth pattern indicators (new) ─────────────────────────────────────────────
@@ -325,6 +375,9 @@ _AUTH_PATTERNS: list[tuple[str, list[str]]] = [
     ("Okta",      ['"@okta"', "okta-auth-js"]),
     ("Cognito",   ["amazon-cognito", "aws-amplify/auth", "cognito"]),
     ("Keycloak",  ["keycloak"]),
+    ("OpenIddict", ["OpenIddict"]),
+    ("ASP.NET Identity", ["Microsoft.AspNetCore.Identity", "AddIdentity"]),
+    ("JWT bearer", ["AddJwtBearer", "JwtBearerDefaults"]),
 ]
 
 # ── Infra file names (new) ─────────────────────────────────────────────────────
@@ -453,7 +506,10 @@ def _detect_frameworks(files: dict[Path, str]) -> list[str]:
                 (
                     content
                     for path, content in files.items()
-                    if path.name == filename
+                    if (
+                        (filename.startswith(".") and path.name.endswith(filename))
+                        or path.name == filename
+                    )
                     and (not needle or needle.lower() in content.lower())
                 ),
                 None,
@@ -467,7 +523,7 @@ def _detect_frameworks(files: dict[Path, str]) -> list[str]:
 def _extract_dep_files(root: Path, files: dict[Path, str]) -> dict[str, str]:
     result: dict[str, str] = {}
     for path, content in files.items():
-        if path.name in _DEP_FILENAMES:
+        if path.name in _DEP_FILENAMES or path.suffix.lower() in {".csproj", ".fsproj", ".vbproj"}:
             rel = str(path.relative_to(root))
             result[rel] = content[:_MAX_DEP_BYTES]
     return result
@@ -481,9 +537,20 @@ def _detect_services(root: Path, files: dict[Path, str]) -> list[str]:
         if len(parts) >= 2 and parts[0].lower() in _CONTAINER_DIRS:
             services.add(parts[1])
             continue
+        if (
+            len(parts) >= 2
+            and parts[0].lower() in {"src", "source"}
+            and _looks_like_project_dir(parts[1])
+        ):
+            services.add(parts[1])
+            continue
         if len(parts) >= 2:
             top = parts[0]
-            if path.name in _DEP_FILENAMES or path.name in _ENTRY_FILES:
+            if (
+                path.name in _DEP_FILENAMES
+                or path.name in _ENTRY_FILES
+                or path.suffix.lower() in {".csproj", ".fsproj", ".vbproj"}
+            ):
                 services.add(top)
     return sorted(services) if services else [root.name]
 
@@ -507,7 +574,7 @@ def _detect_apis(root: Path, files: dict[Path, str]) -> list[ApiEndpoint]:
                 raw_path = m.group(pat.path_group).strip()
                 api_path = raw_path if raw_path.startswith("/") else f"/{raw_path}"
                 method = (
-                    m.group(pat.method_group).upper()
+                    _normalize_method(m.group(pat.method_group))
                     if pat.method_group
                     else _infer_method(line)
                 )
@@ -532,9 +599,22 @@ def _infer_method(line: str) -> str:
     return "ROUTE"
 
 
+def _normalize_method(method: str) -> str:
+    method = method.upper()
+    return method[4:] if method.startswith("HTTP") else method
+
+
 def _detect_databases(files: dict[Path, str]) -> list[str]:
     corpus = _build_corpus(files)
-    return [db for db, indicators in _DATABASES if any(i in corpus for i in indicators)]
+    seen: set[str] = set()
+    results: list[str] = []
+    for db, indicators in _DATABASES:
+        if db in seen:
+            continue
+        if any(i.lower() in corpus for i in indicators):
+            seen.add(db)
+            results.append(db)
+    return results
 
 
 def _detect_external_apis(files: dict[Path, str]) -> list[str]:
@@ -583,14 +663,14 @@ def _detect_env_vars(root: Path, files: dict[Path, str]) -> list[EnvVarHit]:
 def _detect_http_calls(root: Path, files: dict[Path, str]) -> list[HttpCallHit]:
     results: list[HttpCallHit] = []
     seen: set[str] = set()
-    _src = frozenset({".py", ".ts", ".js", ".jsx", ".tsx"})
+    _src = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs"})
 
     for path, content in files.items():
         if path.suffix.lower() not in _src:
             continue
         lines = content.splitlines()
         for lineno, line in enumerate(lines, 1):
-            for pattern in (_HTTP_CALL_RE, _BASE_URL_RE):
+            for pattern in (_HTTP_CALL_RE, _BASE_URL_RE, _CS_HTTP_CALL_RE):
                 m = pattern.search(line)
                 if not m:
                     continue

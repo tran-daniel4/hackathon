@@ -257,8 +257,9 @@ def _operational_view(
     has_docker    = "Dockerfile" in tree or "docker-compose.yml" in tree
     has_terraform = any(f.endswith(".tf") for f in scan.file_tree)
     has_k8s       = any("k8s" in f or "kubernetes" in f for f in scan.file_tree)
+    has_aspire    = ".NET Aspire" in scan.frameworks
 
-    if not has_docker and not has_terraform and not has_k8s:
+    if not has_docker and not has_terraform and not has_k8s and not has_aspire:
         return None
 
     nodes = _graph_nodes_to_diagram(graph, sev_index, label_prefix="[container] " if has_docker else "")
@@ -268,13 +269,23 @@ def _operational_view(
     infra_label = (
         "Kubernetes" if has_k8s
         else "Terraform (Cloud)" if has_terraform
+        else ".NET Aspire AppHost" if has_aspire
         else "Docker Compose"
     )
     nodes.insert(0, DiagramNode(
-        id="infra-runtime", label=infra_label, type="worker", layer="infra",
+        id="infra-runtime", label=infra_label, type="worker", layer="infra", group="runtime",
     ))
 
-    return DiagramView(id="operational", label="Operational", nodes=nodes, edges=edges)
+    used_groups = {n.group for n in nodes if n.group}
+    groups = [DiagramGroup(id="runtime", label="Runtime"), *_STANDARD_GROUPS]
+
+    return DiagramView(
+        id="operational",
+        label="Operational",
+        groups=[g for g in groups if g.id in used_groups],
+        nodes=nodes,
+        edges=edges,
+    )
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────

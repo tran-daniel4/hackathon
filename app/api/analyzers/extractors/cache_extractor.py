@@ -6,7 +6,7 @@ from analyzers.extractors._helpers import ev_tmp, file_basename, infer_service_i
 from graph.models import GraphFactPatch, NodeFact, EdgeFact, Evidence, make_node_id
 
 
-_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx"})
+_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs"})
 
 _REDIS_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in [
@@ -19,6 +19,9 @@ _REDIS_PATTERNS = [
         r'from redis import',
         r'import redis',
         r"redis://",
+        r"StackExchange\.Redis",
+        r"AddRedis\s*\(",
+        r"Aspire\.Hosting\.Redis",
     ]
 ]
 

@@ -6,8 +6,9 @@ from analyzers.extractors._helpers import ev_tmp, file_basename, infer_service_i
 from graph.models import GraphFactPatch, NodeFact, EdgeFact, MessagingFact, Evidence, WarningFact, make_node_id
 
 
-_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx"})
-_DEP_NAMES = {"requirements.txt", "package.json", "Pipfile", "pyproject.toml"}
+_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs"})
+_DEP_NAMES = {"requirements.txt", "package.json", "Pipfile", "pyproject.toml", "Directory.Packages.props"}
+_DEP_EXTS = frozenset({".csproj", ".fsproj", ".vbproj", ".props", ".targets"})
 
 _MESSAGING_IMPORTS = [
     re.compile(p, re.IGNORECASE) for p in [
@@ -23,6 +24,10 @@ _MESSAGING_IMPORTS = [
         r"new Worker\s*\(",
         r"boto3\.client\s*\(\s*['\"]sqs",
         r"SQSClient\s*\(",
+        r"MassTransit",
+        r"RabbitMQ\.Client",
+        r"Aspire\.Hosting\.RabbitMQ",
+        r"Azure\.Messaging\.ServiceBus",
     ]
 ]
 
@@ -59,7 +64,9 @@ def _is_literal(s: str) -> bool:
 class MessagingExtractor(Analyzer):
     def supports(self, file_index: FileIndex) -> bool:
         for p in file_index.paths:
-            if file_basename(p) in _DEP_NAMES:
+            base = file_basename(p)
+            ext = ("." + base.rsplit(".", 1)[-1].lower()) if "." in base else ""
+            if base in _DEP_NAMES or ext in _DEP_EXTS:
                 content = file_index.get_content(p) or ""
                 if any(rx.search(content) for rx in _MESSAGING_IMPORTS):
                     return True

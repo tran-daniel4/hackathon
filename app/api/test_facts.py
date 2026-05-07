@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from analyzers.file_index import FileIndex
 from analyzers.orchestrator import AnalyzerOrchestrator
+from graph.compat import graph_facts_to_arch_graph
 from graph.models import GraphFacts
 
 
@@ -68,6 +69,60 @@ def test_orchestrator_smoke():
             print(f"  [{w.code}] {w.message}")
 
 
+def test_dotnet_src_projects_are_detected_as_services():
+    files = {
+        "src/BookWorm.Catalog/BookWorm.Catalog.csproj": """
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+  </ItemGroup>
+</Project>
+""",
+        "src/BookWorm.Catalog/Program.cs": """
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql("Host=postgres"));
+var app = builder.Build();
+app.MapGet("/api/books", () => Results.Ok());
+app.MapPost("/api/books", () => Results.Created());
+app.Run();
+""",
+        "src/BookWorm.AppHost/BookWorm.AppHost.csproj": """
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="8.0.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="8.0.0" />
+  </ItemGroup>
+</Project>
+""",
+        "src/BookWorm.AppHost/AppHost.cs": """
+var builder = DistributedApplication.CreateBuilder(args);
+var postgres = builder.AddPostgres("postgres");
+builder.AddProject<Projects.BookWorm_Catalog>("catalog-api").WithReference(postgres);
+builder.Build().Run();
+""",
+    }
+
+    facts = AnalyzerOrchestrator().run(FileIndex(files), analysis_id="dotnet-src-001")
+    node_ids = {node.id for node in facts.nodes}
+
+    assert "src" not in node_ids
+    assert "bookworm-catalog" in node_ids
+    assert "bookworm-apphost" in node_ids
+    assert "postgresql" in node_ids
+
+    assert any(
+        api.component_id == "bookworm-catalog"
+        and api.method == "GET"
+        and api.path == "/api/books"
+        for api in facts.apis
+    )
+
+    graph = graph_facts_to_arch_graph(facts)
+    assert any(edge.source == "bookworm-catalog" and edge.target == "postgresql" for edge in graph.edges)
+
+
 if __name__ == "__main__":
     test_orchestrator_smoke()
+    test_dotnet_src_projects_are_detected_as_services()
     print("\nSmoke test passed.")

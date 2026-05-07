@@ -6,9 +6,10 @@ from analyzers.extractors._helpers import ev_tmp, file_basename, infer_service_i
 from graph.models import GraphFactPatch, NodeFact, EdgeFact, Evidence, make_node_id
 
 
-_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".mjs"})
-_DEP_NAMES = {"requirements.txt", "package.json", "Pipfile", "pyproject.toml"}
-_ENV_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".yml", ".yaml", ".toml"})
+_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".mjs", ".cs"})
+_DEP_NAMES = {"requirements.txt", "package.json", "Pipfile", "pyproject.toml", "Directory.Packages.props"}
+_DEP_EXTS = frozenset({".csproj", ".fsproj", ".vbproj", ".props", ".targets"})
+_ENV_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs", ".yml", ".yaml", ".toml", ".json"})
 
 # (name, node_type, [indicator_strings])
 _EXTERNAL_APIS: list[tuple[str, str, list[str]]] = [
@@ -33,8 +34,10 @@ _EXTERNAL_APIS: list[tuple[str, str, list[str]]] = [
     ("Auth0",      "auth_provider", ['"auth0"', '"@auth0"', "auth0-spa"]),
     ("Okta",       "auth_provider", ['"@okta"', "okta-auth-js"]),
     ("Cognito",    "auth_provider", ["amazon-cognito", "aws-amplify/auth", "cognito"]),
-    ("Keycloak",   "auth_provider", ["keycloak"]),
+    ("Keycloak",   "auth_provider", ["keycloak", "Keycloak.AuthServices"]),
     ("Supabase",   "auth_provider", ['"@supabase"', "supabase"]),
+    ("OpenIddict", "auth_provider", ["OpenIddict"]),
+    ("Azure",      "external_service", ["Azure.", "Azure.Identity", "Azure.Storage"]),
 ]
 
 _ENV_VAR_PROVIDERS: list[tuple[str, re.Pattern]] = [
@@ -54,6 +57,7 @@ _ENV_VAR_PROVIDERS: list[tuple[str, re.Pattern]] = [
     ("Mailgun",    re.compile(r'\b(MAILGUN_[A-Z_]+)\b')),
     ("Cloudinary", re.compile(r'\b(CLOUDINARY_[A-Z_]+)\b')),
     ("Sentry",     re.compile(r'\b(SENTRY_[A-Z_]+)\b')),
+    ("Keycloak",   re.compile(r'\b(KEYCLOAK_[A-Z_]+)\b')),
 ]
 
 
@@ -71,7 +75,9 @@ class ExternalIntegrationExtractor(Analyzer):
         # Step 1: scan dependency files first (higher confidence)
         dep_hits: dict[str, tuple[str, str, str]] = {}  # name → (file_path, indicator, node_type)
         for path in file_index.paths:
-            if file_basename(path) not in _DEP_NAMES:
+            base = file_basename(path)
+            ext = ("." + base.rsplit(".", 1)[-1].lower()) if "." in base else ""
+            if base not in _DEP_NAMES and ext not in _DEP_EXTS:
                 continue
             content = file_index.get_content(path) or ""
             for name, node_type, indicators in _EXTERNAL_APIS:

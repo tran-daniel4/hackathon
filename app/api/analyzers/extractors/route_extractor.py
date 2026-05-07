@@ -61,6 +61,24 @@ _API_PATTERNS: list[_ApiPattern] = [
         method_group=None,
         path_group=1,
     ),
+    _ApiPattern(
+        extensions=frozenset({".cs"}),
+        regex=re.compile(
+            r'\bMap(Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']+)["\']',
+            re.IGNORECASE,
+        ),
+        method_group=1,
+        path_group=2,
+    ),
+    _ApiPattern(
+        extensions=frozenset({".cs"}),
+        regex=re.compile(
+            r'\[(HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch|Route)\s*\(\s*["\']([^"\']+)["\']',
+            re.IGNORECASE,
+        ),
+        method_group=1,
+        path_group=2,
+    ),
 ]
 
 _NEXT_EXPORT_METHOD_RE = re.compile(
@@ -77,6 +95,11 @@ def _infer_method(line: str) -> str:
         if m in low:
             return m.upper()
     return "ROUTE"
+
+
+def _normalize_method(method: str) -> str:
+    method = method.upper()
+    return method[4:] if method.startswith("HTTP") else method
 
 
 class RouteExtractor(Analyzer):
@@ -125,7 +148,7 @@ class RouteExtractor(Analyzer):
                     raw_path = m.group(pat.path_group).strip()
                     api_path = raw_path if raw_path.startswith("/") else f"/{raw_path}"
                     method = (
-                        m.group(pat.method_group).upper()
+                        _normalize_method(m.group(pat.method_group))
                         if pat.method_group
                         else _infer_method(line)
                     )

@@ -36,6 +36,7 @@ const ROW_GAP = 80;
 const TEXT_EXTS = new Set([
   "py","js","ts","tsx","jsx","go","java","rb","php","cs","cpp","c","h","rs",
   "swift","kt","json","yaml","yml","toml","html","css","scss","sql","sh","md","txt","env",
+  "csproj","fsproj","vbproj","sln","props","targets","cshtml","razor",
 ]);
 const SKIP_DIRS = new Set(["node_modules",".git",".venv","__pycache__","dist","build",".next"]);
 
@@ -46,6 +47,8 @@ const PRIORITY_NAMES = new Set([
   "Dockerfile","docker-compose.yml","docker-compose.yaml",
   "main.py","app.py","server.py","index.ts","index.js","server.ts","server.js",
   "manage.py","wsgi.py","asgi.py","main.go","main.ts","main.js",
+  "Program.cs","Startup.cs","appsettings.json","appsettings.Development.json",
+  "Directory.Packages.props","Directory.Build.props","Directory.Build.targets",
   ".env.example","terraform.tf","infra.tf",
 ]);
 
@@ -164,7 +167,6 @@ export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
       const fileTree  = allPaths.join("\n");
       const included  = Array.from(fileList).filter(f => shouldInclude(f.webkitRelativePath));
 
-      console.log(included.length)
       if (included.length === 0) {
         setStatus("empty");
         return;
@@ -172,8 +174,8 @@ export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
 
       const files: Record<string, string> = {};
       let totalSize = 0;
-      const MAX = 20_000;
-      const PER_FILE = 3_000;
+      const MAX = 1_500_000;
+      const PER_FILE = 80_000;
 
       const sorted = [...included].sort((a, b) =>
         Number(isPriority(b.webkitRelativePath)) - Number(isPriority(a.webkitRelativePath))

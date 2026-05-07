@@ -46,9 +46,9 @@ _COMMON_SUFFIXES = (
 # Shared constraint added to every prompt
 _CONSTRAINT_PREFIX = (
     "Return JSON only — no markdown, no explanation.\n"
-    "RULE: Use ONLY the node ids provided in FACTS. "
-    "Never invent new nodes. "
-    "Any connection you infer beyond the facts must have confidence=inferred "
+    "Ground every node in FACTS. Synthetic actors, capabilities, system, and runtime nodes "
+    "are allowed for non-component views when FACTS imply them. "
+    "Any connection you infer beyond direct evidence must have confidence=inferred "
     "and label starting with 'suggested: '.\n\n"
 )
 
@@ -398,6 +398,8 @@ def _prompt_component(ctx: dict) -> str:
         _CONSTRAINT_PREFIX
         + f"FACTS:\n{facts}\n\n"
         "Task: Component view.\n"
+        "COMPONENT VIEW RULE: Use ONLY the node ids provided in services, data_stores, "
+        "and externals. Never invent component nodes.\n"
         "CRITICAL: Use the EXACT ids from services, data_stores, and externals. "
         "Do not add or remove nodes.\n"
         "- Assign each node to a meaningful domain group (max 5 groups total)\n"
