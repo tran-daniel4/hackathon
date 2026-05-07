@@ -34,7 +34,7 @@ export default function AuthCallback() {
       if (accessToken) {
         localStorage.setItem("access_token", accessToken)
         localStorage.setItem("refresh_token", refreshToken ?? "")
-        router.replace("/")
+        router.replace("/diagrams")
         return
       }
 
@@ -60,7 +60,7 @@ export default function AuthCallback() {
         const data = await res.json()
         localStorage.setItem("access_token", data.access_token)
         localStorage.setItem("refresh_token", data.refresh_token ?? "")
-        router.replace("/")
+        router.replace("/diagrams")
       } catch {
         setError("Could not reach the server. Make sure the API is running and try again.")
       }

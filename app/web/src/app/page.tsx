@@ -4,11 +4,11 @@ import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
-import { Dashboard } from "./pages/dashboard";
 
 function getValidToken(key: string): string | null {
   const token = localStorage.getItem(key);
@@ -28,6 +28,7 @@ function clearTokens() {
 
 export default function Home() {
   const { status: sessionStatus } = useSession();
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -59,7 +60,7 @@ export default function Home() {
       .then(data => {
         localStorage.setItem("access_token", data.access_token);
         localStorage.setItem("refresh_token", data.refresh_token);
-        setIsLoggedIn(true);
+        router.replace("/diagrams");
       })
       .catch(() => clearTokens())
       .finally(() => setIsCheckingRefresh(false));
@@ -67,22 +68,16 @@ export default function Home() {
 
   if (sessionStatus === "loading" || isCheckingRefresh) return null;
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    setIsLoggedIn(false);
-    signOut({ redirect: false });
-  };
-
   if (sessionStatus === "authenticated" || isLoggedIn) {
-    return <Dashboard onLogout={handleLogout} />;
+    router.replace("/diagrams");
+    return null;
   }
 
   if (showLogin) {
     return (
       <LoginPage
         onClose={() => setShowLogin(false)}
-        onLogin={() => { setShowLogin(false); setIsLoggedIn(true); }}
+        onLogin={() => { setShowLogin(false); router.replace("/diagrams"); }}
         onSwitchToSignUp={() => {
           setShowLogin(false);
           setShowSignUp(true);
@@ -95,7 +90,7 @@ export default function Home() {
     return (
       <SignUpPage
         onClose={() => setShowSignUp(false)}
-        onSignUp={() => { setShowSignUp(false); setIsLoggedIn(true); }}
+        onSignUp={() => { setShowSignUp(false); router.replace("/diagrams"); }}
         onSwitchToLogin={() => {
           setShowSignUp(false);
           setShowLogin(true);

@@ -2,7 +2,9 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useRef, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AddRepositoryModal } from "@/components/AddRepositoryModal";
@@ -28,12 +30,10 @@ interface Activity {
 
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 
-interface DashboardProps {
-  onLogout?: () => void;
-}
-
-export function Dashboard({ onLogout }: DashboardProps) {
+export function Dashboard() {
   const { data: session } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
   const initials = session?.user?.name
     ?.split(" ")
     .map((n) => n[0])
@@ -74,8 +74,27 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [currentView, setCurrentView] = useState<"dashboard" | "activity" | "repository" | "settings" | "teams">("dashboard");
+  const [subView, setSubView] = useState<"repository" | "settings" | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+
+  // Derive the top-level view from the URL; subView overlays on top without changing the URL
+  const urlView = pathname === "/activity" ? "activity"
+                : pathname === "/teams"    ? "teams"
+                : "dashboard";
+  const currentView = subView ?? urlView;
+
+  // Reset sub-views when the URL changes (e.g. browser back while viewing a repo)
+  useEffect(() => {
+    setSubView(null);
+    setSelectedRepo(null);
+  }, [pathname]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    signOut({ redirect: false });
+    router.replace("/");
+  };
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
@@ -143,18 +162,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <div className="flex items-center gap-12">
             <h1 className="text-xl tracking-tight">DynoDocs</h1>
             <div className="hidden md:flex gap-8 text-[13px]">
-              <button
-                onClick={() => setCurrentView("dashboard")}
-                className={`transition-colors ${currentView !== "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
-              >Diagrams</button>
-              <button
-                onClick={() => setCurrentView("activity")}
+              <Link
+                href="/diagrams"
+                className={`transition-colors ${currentView === "dashboard" ? "text-white" : "text-white/60 hover:text-white"}`}
+              >Diagrams</Link>
+              <Link
+                href="/activity"
                 className={`transition-colors ${currentView === "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
-              >Activity</button>
-              <button
-                onClick={() => setCurrentView("teams")}
+              >Activity</Link>
+              <Link
+                href="/teams"
                 className={`transition-colors ${currentView === "teams" ? "text-white" : "text-white/60 hover:text-white"}`}
-              >Teams</button>
+              >Teams</Link>
             </div>
           </div>
 
@@ -231,14 +250,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <p className="text-[11px] text-white/50">{session?.user?.email ?? ""}</p>
                     </div>
                     <button
-                      onClick={() => { setShowUserDropdown(false); setCurrentView("settings"); }}
+                      onClick={() => { setShowUserDropdown(false); setSubView("settings"); }}
                       className="w-full px-4 py-3 flex items-center gap-2 text-[13px] text-white/80 hover:bg-white/5 transition-colors border-b border-white/5"
                     >
                       <SettingsIcon className="w-4 h-4" />
                       Settings
                     </button>
                     <button
-                      onClick={() => { setShowUserDropdown(false); onLogout?.(); }}
+                      onClick={() => { setShowUserDropdown(false); handleLogout(); }}
                       className="w-full px-4 py-3 flex items-center gap-2 text-[13px] text-white/80 hover:bg-white/5 transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
@@ -270,8 +289,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
       {/* Sub-pages */}
       {currentView === "activity" && <ActivityPage />}
-      {currentView === "settings" && <SettingsPage onBack={() => setCurrentView("dashboard")} />}
-      {currentView === "teams" && <TeamsPage onBack={() => setCurrentView("dashboard")} />}
+      {currentView === "settings" && <SettingsPage onBack={() => setSubView(null)} />}
+      {currentView === "teams" && <TeamsPage onBack={() => router.push("/diagrams")} />}
       {currentView === "repository" && selectedRepo && <RepositoryDetail repository={selectedRepo} />}
 
       {/* Dashboard Main Content */}
@@ -355,7 +374,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.03)" }}
-                    onClick={() => { setSelectedRepo(repo); setCurrentView("repository"); }}
+                    onClick={() => { setSelectedRepo(repo); setSubView("repository"); }}
                     className="border border-white/10 bg-[#0f0f15]/60 p-6 transition-all group cursor-pointer"
                   >
                     <div className="flex items-start justify-between">
@@ -429,12 +448,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
               ))}
             </div>
 
-            <button
-              onClick={() => setCurrentView("activity")}
-              className="w-full py-3 border border-white/10 text-[12px] text-white/60 hover:bg-white/5 hover:text-white transition-all uppercase tracking-[0.15em]"
+            <Link
+              href="/activity"
+              className="block w-full py-3 border border-white/10 text-[12px] text-white/60 hover:bg-white/5 hover:text-white transition-all uppercase tracking-[0.15em] text-center"
             >
               View All Activity
-            </button>
+            </Link>
           </div>
         </div>
       </div>}
