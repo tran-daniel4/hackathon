@@ -164,6 +164,10 @@ export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
       const fileTree  = allPaths.join("\n");
       const included  = Array.from(fileList).filter(f => shouldInclude(f.webkitRelativePath));
 
+      if (included.length === 0) {
+        throw new Error("No readable source files found. Make sure the folder contains code files (e.g. .py, .ts, .js, .go).");
+      }
+
       const files: Record<string, string> = {};
       let totalSize = 0;
       const MAX = 20_000;
