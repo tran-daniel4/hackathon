@@ -139,7 +139,7 @@ function toFlowEdges(dedges: DiagramEdge[]): Edge[] {
 
 export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error" | "empty">("idle");
   const [error,  setError]  = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
 
@@ -163,6 +163,12 @@ export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
       const allPaths  = Array.from(fileList).map(f => f.webkitRelativePath);
       const fileTree  = allPaths.join("\n");
       const included  = Array.from(fileList).filter(f => shouldInclude(f.webkitRelativePath));
+
+      console.log(included.length)
+      if (included.length === 0) {
+        setStatus("empty");
+        return;
+      }
 
       const files: Record<string, string> = {};
       let totalSize = 0;
@@ -239,6 +245,19 @@ export function DiagramView({ onDiagrams }: DiagramViewProps = {}) {
         <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
         <div className="text-[13px] text-white/60">Running analysis pipeline…</div>
         <div className="text-[11px] text-white/30">Repo Analyzer → System Designer → Bottleneck Detector</div>
+      </div>
+    );
+  }
+
+  if (status === "empty") {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 border border-dashed border-white/10 bg-white/[0.01]">
+        <AlertCircle className="w-5 h-5 text-white/20" />
+        <div className="text-[11px] uppercase tracking-[0.2em] text-white/30">No source files found</div>
+        <div className="text-[11px] text-white/20">Make sure the folder contains code files (.py, .ts, .js, .go, …)</div>
+        <button onClick={reset} className="mt-2 px-4 py-2 border border-white/10 text-[11px] uppercase tracking-[0.15em] text-white/40 hover:bg-white/5 hover:text-white/70 transition-colors">
+          Try a different folder
+        </button>
       </div>
     );
   }
