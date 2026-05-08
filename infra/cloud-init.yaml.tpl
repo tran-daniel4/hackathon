@@ -70,7 +70,7 @@ runcmd:
       redis:7
 
   # Install Ollama and configure it before pulling models
-  - curl -fsSL https://ollama.com/install.sh | sh || true
+  - curl -fsSL https://ollama.com/install.sh | sh
   - |
     mkdir -p /etc/systemd/system/ollama.service.d
     cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
@@ -80,8 +80,8 @@ runcmd:
     EOF
   - systemctl daemon-reload
   - systemctl restart ollama
-  - sleep 5
-  - ollama pull deepseek-coder:6.7b-instruct-q4_K_M || true
+  - until curl -sf http://localhost:11434/api/tags > /dev/null; do sleep 3; done
+  - ollama pull ${ollama_model}
 
   # Set up Python venv and install deps
   - python3 -m venv /opt/dynodocs/app/api/.venv

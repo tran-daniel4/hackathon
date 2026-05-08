@@ -54,3 +54,9 @@ variable "allowed_origins" {
   type        = string
   default     = "http://localhost:3000"
 }
+
+variable "ollama_model" {
+  description = "Ollama model tag to pull on the droplet (used by the LLM pipeline)"
+  type        = string
+  default     = "deepseek-coder:6.7b-instruct-q4_K_M"
+}
