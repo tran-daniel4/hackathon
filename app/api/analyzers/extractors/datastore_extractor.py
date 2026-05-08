@@ -6,7 +6,7 @@ from analyzers.extractors._helpers import ev_tmp, file_basename, infer_service_i
 from graph.models import GraphFactPatch, NodeFact, EdgeFact, Evidence, make_node_id
 
 
-_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".java", ".go", ".cs", ".rb"})
+_SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".java", ".go", ".cs", ".rb", ".yml", ".yaml", ".json", ".toml", ".properties"})
 
 # (db_name, [pattern_strings])
 _DB_PATTERNS: list[tuple[str, list[str]]] = [
@@ -16,6 +16,9 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
         r"psycopg2\.connect\s*\(",
         r"pg\.Pool\s*\(",
         r"new\s+Pool\s*\(",
+        r'provider\s*=\s*["\']postgresql["\']',
+        r"jdbc:postgresql://",
+        r'sql\.Open\s*\(\s*["\']postgres["\']',
         r"postgresql://",
         r"postgres://",
         r"\bNpgsql\b",
@@ -25,6 +28,7 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
     ("SQL Server", [
         r"Microsoft\.Data\.SqlClient",
         r"UseSqlServer\s*\(",
+        r"jdbc:sqlserver://",
         r"Aspire\.Hosting\.SqlServer",
     ]),
     ("MySQL", [
@@ -32,6 +36,9 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
         r"aiomysql\.connect\s*\(",
         r"mysql\.createConnection\s*\(",
         r"mysql2\.createConnection\s*\(",
+        r'provider\s*=\s*["\']mysql["\']',
+        r"jdbc:mysql://",
+        r'sql\.Open\s*\(\s*["\']mysql["\']',
         r"mysql://",
     ]),
     ("MongoDB", [
@@ -40,12 +47,23 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
         r"motor_asyncio\.AsyncIOMotorClient\s*\(",
         r"mongodb://",
         r"mongoose\.connect\s*\(",
+        r"spring\.data\.mongodb",
+        r"MongoTemplate",
     ]),
     ("SQLite", [
         r"sqlite3\.connect\s*\(",
         r"sqlite:///",
         r"Microsoft\.Data\.Sqlite",
         r"UseSqlite\s*\(",
+        r'provider\s*=\s*["\']sqlite["\']',
+        r'sql\.Open\s*\(\s*["\']sqlite3?["\']',
+    ]),
+    ("Redis", [
+        r"\bioredis\b",
+        r"new\s+Redis\s*\(",
+        r"redis\.NewClient\s*\(",
+        r"spring\.data\.redis",
+        r"RedisTemplate",
     ]),
     ("Elasticsearch", [
         r"elasticsearch\.Elasticsearch\s*\(",

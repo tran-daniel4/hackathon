@@ -122,7 +122,111 @@ builder.Build().Run();
     assert any(edge.source == "bookworm-catalog" and edge.target == "postgresql" for edge in graph.edges)
 
 
+def test_multistack_monorepo_routes_and_datastores():
+    files = {
+        "apps/web/package.json": """
+{
+  "dependencies": {
+    "next": "15.0.0",
+    "react": "19.0.0"
+  }
+}
+""",
+        "apps/api/package.json": """
+{
+  "dependencies": {
+    "@nestjs/core": "10.0.0",
+    "@prisma/client": "5.0.0",
+    "pg": "8.11.0"
+  }
+}
+""",
+        "apps/api/src/users.controller.ts": """
+import { Controller, Get, Post } from '@nestjs/common';
+
+@Controller('users')
+export class UsersController {
+  @Get()
+  list() { return []; }
+
+  @Post(':id')
+  create() { return {}; }
+}
+""",
+        "services/orders/pom.xml": """
+<project>
+  <dependencies>
+    <dependency>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+  </dependencies>
+</project>
+""",
+        "services/orders/src/main/java/com/acme/orders/OrdersController.java": """
+@RestController
+@RequestMapping("/api/orders")
+public class OrdersController {
+  @GetMapping("/{id}")
+  public String getOrder() { return "ok"; }
+}
+""",
+        "services/orders/src/main/resources/application.yml": """
+spring:
+  datasource:
+    url: jdbc:postgresql://orders-db:5432/orders
+""",
+        "services/worker/requirements.txt": """
+flask
+redis
+""",
+        "services/worker/app.py": """
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route("/jobs", methods=["POST"])
+def jobs():
+    return {"ok": True}
+""",
+    }
+
+    facts = AnalyzerOrchestrator().run(FileIndex(files), analysis_id="multi-stack-001")
+    node_ids = {node.id for node in facts.nodes}
+
+    assert {"web", "api", "orders", "worker"}.issubset(node_ids)
+    assert "postgresql" in node_ids
+
+    assert any(
+        api.component_id == "api"
+        and api.method == "GET"
+        and api.path == "/users"
+        for api in facts.apis
+    )
+    assert any(
+        api.component_id == "api"
+        and api.method == "POST"
+        and api.path == "/users/:id"
+        for api in facts.apis
+    )
+    assert any(
+        api.component_id == "orders"
+        and api.method == "GET"
+        and api.path == "/api/orders/{id}"
+        for api in facts.apis
+    )
+    assert any(
+        api.component_id == "worker"
+        and api.method == "POST"
+        and api.path == "/jobs"
+        for api in facts.apis
+    )
+
+    graph = graph_facts_to_arch_graph(facts)
+    assert any(edge.source == "orders" and edge.target == "postgresql" for edge in graph.edges)
+
+
 if __name__ == "__main__":
     test_orchestrator_smoke()
     test_dotnet_src_projects_are_detected_as_services()
+    test_multistack_monorepo_routes_and_datastores()
     print("\nSmoke test passed.")

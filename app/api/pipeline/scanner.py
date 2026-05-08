@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from analyzers.extractors._helpers import infer_service_name
 from pydantic import BaseModel
 
 
@@ -140,11 +141,11 @@ _DEP_FILENAMES = {
 # ── Database indicators ────────────────────────────────────────────────────────
 
 _DATABASES: list[tuple[str, list[str]]] = [
-    ("PostgreSQL",    ["psycopg2", "asyncpg", "postgresql://", "postgres://"]),
-    ("MySQL",         ["pymysql", "mysqlclient", "mysql://", "aiomysql"]),
-    ("MongoDB",       ["pymongo", "motor", "mongodb://", "mongoose"]),
-    ("SQLite",        ["sqlite3", "sqlite:///"]),
-    ("Redis",         ["redis://", "aioredis", "import redis", '"redis"']),
+    ("PostgreSQL",    ["psycopg2", "asyncpg", "postgresql://", "postgres://", 'provider = "postgresql"', "jdbc:postgresql://", 'sql.open("postgres"']),
+    ("MySQL",         ["pymysql", "mysqlclient", "mysql://", "aiomysql", 'provider = "mysql"', "jdbc:mysql://", 'sql.open("mysql"']),
+    ("MongoDB",       ["pymongo", "motor", "mongodb://", "mongoose", "spring.data.mongodb", "mongotemplate"]),
+    ("SQLite",        ["sqlite3", "sqlite:///", 'provider = "sqlite"', 'sql.open("sqlite']),
+    ("Redis",         ["redis://", "aioredis", "import redis", '"redis"', "ioredis", "new redis(", "redis.newclient(", "spring.data.redis", "redistemplate"]),
     ("PostgreSQL",    ["npgsql", "Aspire.Hosting.PostgreSQL"]),
     ("SQL Server",    ["Microsoft.Data.SqlClient", "UseSqlServer", "Aspire.Hosting.SqlServer"]),
     ("SQLite",        ["Microsoft.Data.Sqlite", "UseSqlite"]),
@@ -219,23 +220,6 @@ _API_PATTERNS: list[_ApiPattern] = [
         path_group=2,
     ),
     _ApiPattern(
-        extensions=frozenset({".ts"}),
-        regex=re.compile(
-            r'@(Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']*)["\']',
-            re.IGNORECASE,
-        ),
-        method_group=1,
-        path_group=2,
-    ),
-    _ApiPattern(
-        extensions=frozenset({".java"}),
-        regex=re.compile(
-            r'@(?:Get|Post|Put|Delete|Patch|Request)Mapping\s*\(\s*(?:value\s*=\s*)?["\']([^"\']+)["\']'
-        ),
-        method_group=None,
-        path_group=1,
-    ),
-    _ApiPattern(
         extensions=frozenset({".cs"}),
         regex=re.compile(
             r'\bMap(Get|Post|Put|Delete|Patch)\s*\(\s*["\']([^"\']+)["\']',
@@ -254,6 +238,27 @@ _API_PATTERNS: list[_ApiPattern] = [
         path_group=2,
     ),
 ]
+_FLASK_ROUTE_RE = re.compile(
+    r'@(?:\w+\.)?route\s*\(\s*["\']([^"\']+)["\'](?P<rest>[^)]*)\)',
+    re.IGNORECASE,
+)
+_FLASK_METHODS_RE = re.compile(r'methods\s*=\s*\[([^\]]+)\]', re.IGNORECASE)
+_NEST_CONTROLLER_RE = re.compile(
+    r'@Controller\s*\(\s*(?:["\']([^"\']*)["\']|\{[^}]*path\s*:\s*["\']([^"\']*)["\'][^}]*\})?\s*\)',
+    re.IGNORECASE,
+)
+_NEST_METHOD_RE = re.compile(
+    r'@(Get|Post|Put|Delete|Patch|Head|Options|All)\s*\(\s*(?:["\']([^"\']*)["\'])?',
+    re.IGNORECASE,
+)
+_SPRING_CLASS_ROUTE_RE = re.compile(
+    r'@RequestMapping\s*\(\s*(?:(?:value|path)\s*=\s*)?["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_SPRING_METHOD_RE = re.compile(
+    r'@(?:(Get|Post|Put|Delete|Patch)Mapping|RequestMapping)\s*\(([^)]*)\)',
+    re.IGNORECASE,
+)
 
 
 # ── Service detection helpers ──────────────────────────────────────────────────
@@ -266,6 +271,7 @@ _ENTRY_FILES = {
     "Main.java", "Application.java", "main.go", "main.rb",
     "Program.cs", "Startup.cs", "AppHost.cs",
 }
+_SERVICE_MARKER_EXTS = {".csproj", ".fsproj", ".vbproj"}
 
 
 def _looks_like_project_dir(name: str) -> bool:
@@ -318,6 +324,16 @@ _BASE_URL_RE = re.compile(
 )
 _CS_HTTP_CALL_RE = re.compile(
     r'\b(?:Get|Post|Put|Delete|Patch)Async\s*\(\s*["\']'
+    r'(https?://([a-zA-Z0-9.-]+))',
+    re.I,
+)
+_JAVA_HTTP_CALL_RE = re.compile(
+    r'\b(?:uri|URI\.create|WebClient\.create)\s*\(\s*["\']'
+    r'(https?://([a-zA-Z0-9.-]+))',
+    re.I,
+)
+_GO_HTTP_CALL_RE = re.compile(
+    r'\b(?:http\.(?:Get|Post)|NewRequest)\s*\([^"\']*["\']'
     r'(https?://([a-zA-Z0-9.-]+))',
     re.I,
 )
@@ -544,14 +560,12 @@ def _detect_services(root: Path, files: dict[Path, str]) -> list[str]:
         ):
             services.add(parts[1])
             continue
-        if len(parts) >= 2:
-            top = parts[0]
-            if (
-                path.name in _DEP_FILENAMES
-                or path.name in _ENTRY_FILES
-                or path.suffix.lower() in {".csproj", ".fsproj", ".vbproj"}
-            ):
-                services.add(top)
+        if (
+            path.name in _DEP_FILENAMES
+            or path.name in _ENTRY_FILES
+            or path.suffix.lower() in _SERVICE_MARKER_EXTS
+        ):
+            services.add(infer_service_name(str(rel)))
     return sorted(services) if services else [root.name]
 
 
@@ -588,6 +602,12 @@ def _detect_apis(root: Path, files: dict[Path, str]) -> list[ApiEndpoint]:
                     file=str(path.relative_to(root)),
                     line=lineno,
                 ))
+        if ext == ".py":
+            _detect_flask_apis(root, path, lines, endpoints, seen)
+        elif ext == ".ts":
+            _detect_nestjs_apis(root, path, lines, endpoints, seen)
+        elif ext == ".java":
+            _detect_spring_apis(root, path, lines, endpoints, seen)
     return endpoints
 
 
@@ -602,6 +622,113 @@ def _infer_method(line: str) -> str:
 def _normalize_method(method: str) -> str:
     method = method.upper()
     return method[4:] if method.startswith("HTTP") else method
+
+
+def _join_api_path(prefix: str, suffix: str) -> str:
+    prefix = (prefix or "").strip()
+    suffix = (suffix or "").strip()
+    if not prefix and not suffix:
+        return "/"
+    segments = [segment.strip("/") for segment in (prefix, suffix) if segment and segment != "/"]
+    return "/" + "/".join(segments) if segments else "/"
+
+
+def _append_endpoint(
+    root: Path,
+    path: Path,
+    lineno: int,
+    method: str,
+    api_path: str,
+    endpoints: list[ApiEndpoint],
+    seen: set[tuple[str, str]],
+) -> None:
+    key = (method, api_path)
+    if key in seen:
+        return
+    seen.add(key)
+    endpoints.append(ApiEndpoint(
+        method=method,
+        path=api_path,
+        file=str(path.relative_to(root)),
+        line=lineno,
+    ))
+
+
+def _detect_flask_apis(
+    root: Path,
+    path: Path,
+    lines: list[str],
+    endpoints: list[ApiEndpoint],
+    seen: set[tuple[str, str]],
+) -> None:
+    for lineno, line in enumerate(lines, start=1):
+        match = _FLASK_ROUTE_RE.search(line)
+        if not match:
+            continue
+        methods_match = _FLASK_METHODS_RE.search(match.group("rest") or "")
+        methods = ["GET"]
+        if methods_match:
+            methods = [token.strip(" '\"").upper() for token in methods_match.group(1).split(",") if token.strip()]
+        api_path = _join_api_path("", match.group(1))
+        for method in methods:
+            _append_endpoint(root, path, lineno, method, api_path, endpoints, seen)
+
+
+def _detect_nestjs_apis(
+    root: Path,
+    path: Path,
+    lines: list[str],
+    endpoints: list[ApiEndpoint],
+    seen: set[tuple[str, str]],
+) -> None:
+    controller_prefix = ""
+    for lineno, line in enumerate(lines, start=1):
+        controller = _NEST_CONTROLLER_RE.search(line)
+        if controller:
+            controller_prefix = controller.group(1) or controller.group(2) or ""
+            continue
+        route = _NEST_METHOD_RE.search(line)
+        if not route:
+            continue
+        api_path = _join_api_path(controller_prefix, route.group(2) or "")
+        _append_endpoint(root, path, lineno, route.group(1).upper(), api_path, endpoints, seen)
+
+
+def _extract_spring_path(args: str) -> str:
+    value_match = re.search(r'(?:value|path)\s*=\s*["\']([^"\']+)["\']', args, re.IGNORECASE)
+    if value_match:
+        return value_match.group(1)
+    direct_match = re.search(r'["\']([^"\']+)["\']', args)
+    return direct_match.group(1) if direct_match else ""
+
+
+def _extract_spring_method(method_group: str | None, args: str) -> str:
+    if method_group:
+        return method_group.upper()
+    request_method = re.search(r'RequestMethod\.(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)', args, re.IGNORECASE)
+    return request_method.group(1).upper() if request_method else "ROUTE"
+
+
+def _detect_spring_apis(
+    root: Path,
+    path: Path,
+    lines: list[str],
+    endpoints: list[ApiEndpoint],
+    seen: set[tuple[str, str]],
+) -> None:
+    class_prefix = ""
+    for lineno, line in enumerate(lines, start=1):
+        class_route = _SPRING_CLASS_ROUTE_RE.search(line)
+        if class_route:
+            class_prefix = class_route.group(1) or ""
+            continue
+        route = _SPRING_METHOD_RE.search(line)
+        if not route:
+            continue
+        args = route.group(2)
+        api_path = _join_api_path(class_prefix, _extract_spring_path(args))
+        method = _extract_spring_method(route.group(1), args)
+        _append_endpoint(root, path, lineno, method, api_path, endpoints, seen)
 
 
 def _detect_databases(files: dict[Path, str]) -> list[str]:
@@ -663,14 +790,14 @@ def _detect_env_vars(root: Path, files: dict[Path, str]) -> list[EnvVarHit]:
 def _detect_http_calls(root: Path, files: dict[Path, str]) -> list[HttpCallHit]:
     results: list[HttpCallHit] = []
     seen: set[str] = set()
-    _src = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs"})
+    _src = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".cs", ".java", ".go"})
 
     for path, content in files.items():
         if path.suffix.lower() not in _src:
             continue
         lines = content.splitlines()
         for lineno, line in enumerate(lines, 1):
-            for pattern in (_HTTP_CALL_RE, _BASE_URL_RE, _CS_HTTP_CALL_RE):
+            for pattern in (_HTTP_CALL_RE, _BASE_URL_RE, _CS_HTTP_CALL_RE, _JAVA_HTTP_CALL_RE, _GO_HTTP_CALL_RE):
                 m = pattern.search(line)
                 if not m:
                     continue
