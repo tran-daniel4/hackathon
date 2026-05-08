@@ -28,6 +28,8 @@ class TeamMemberOut(BaseModel):
     profile_id: uuid.UUID
     role: str
     created_at: datetime
+    email: str | None = None
+    full_name: str | None = None
 
     model_config = {"from_attributes": True}
 

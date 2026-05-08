@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.deps import get_current_user
@@ -12,13 +12,13 @@ router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 @router.get("/search", response_model=list[UserResponse])
 async def search_profiles(
-    email: str = Query(..., min_length=3),
+    q: str = Query(..., min_length=3),
     current_user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserResponse]:
     result = await db.execute(
         select(Profile)
-        .where(Profile.email.ilike(f"%{email}%"))
+        .where(or_(Profile.email.ilike(f"%{q}%"), Profile.full_name.ilike(f"%{q}%")))
         .limit(10)
     )
     profiles = result.scalars().all()

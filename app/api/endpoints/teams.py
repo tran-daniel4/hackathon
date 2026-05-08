@@ -73,16 +73,28 @@ async def get_team(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
 
     members_result = await db.execute(
-        select(TeamMember).where(TeamMember.team_id == team_id)
+        select(TeamMember, Profile)
+        .join(Profile, Profile.id == TeamMember.profile_id)
+        .where(TeamMember.team_id == team_id)
     )
-    members = members_result.scalars().all()
+    rows = members_result.all()
 
     return TeamWithMembers(
         id=team.id,
         name=team.name,
         created_at=team.created_at,
         updated_at=team.updated_at,
-        members=[TeamMemberOut.model_validate(m) for m in members],
+        members=[
+            TeamMemberOut(
+                team_id=m.team_id,
+                profile_id=m.profile_id,
+                role=m.role,
+                created_at=m.created_at,
+                email=p.email,
+                full_name=p.full_name,
+            )
+            for m, p in rows
+        ],
     )
 
 

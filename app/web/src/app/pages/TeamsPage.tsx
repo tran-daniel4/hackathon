@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
-import { Users, Plus, Trash2, X, ChevronRight, Search } from "lucide-react";
+import { Users, Plus, Trash2, X, ChevronRight, ChevronDown, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -20,6 +20,8 @@ interface ApiMember {
   profile_id: string;
   role: string;
   created_at: string;
+  email: string | null;
+  full_name: string | null;
 }
 
 interface ApiTeam {
@@ -54,18 +56,20 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
   const [teamLoading, setTeamLoading] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [openRoleDropdown, setOpenRoleDropdown] = useState<string | null>(null);
+  const [openInviteRoleDropdown, setOpenInviteRoleDropdown] = useState(false);
 
   const [newTeamName, setNewTeamName] = useState("");
 
   // Invite form state
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviteSearchResults, setInviteSearchResults] = useState<ApiProfile[]>([]);
   const [inviteSearching, setInviteSearching] = useState(false);
   const [inviteSelected, setInviteSelected] = useState<ApiProfile | null>(null);
 
   const resetInviteForm = () => {
-    setInviteEmail("");
+    setSearchQuery("");
     setInviteRole("member");
     setInviteSearchResults([]);
     setInviteSelected(null);
@@ -132,13 +136,13 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
   };
 
   const handleSearchProfiles = () => {
-    if (inviteEmail.trim().length < 3) {
+    if (searchQuery.trim().length < 3) {
       toast.error("Enter at least 3 characters to search");
       return;
     }
     setInviteSearching(true);
     setInviteSelected(null);
-    fetch(`${API_BASE}/profiles/search?email=${encodeURIComponent(inviteEmail.trim())}`, {
+    fetch(`${API_BASE}/profiles/search?q=${encodeURIComponent(searchQuery.trim())}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => {
@@ -170,7 +174,8 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
         return r.json();
       })
       .then((member: ApiMember) => {
-        setSelectedTeam((prev) => prev ? { ...prev, members: [...prev.members, member] } : prev);
+        const enriched: ApiMember = { ...member, email: inviteSelected.email, full_name: inviteSelected.full_name };
+        setSelectedTeam((prev) => prev ? { ...prev, members: [...prev.members, enriched] } : prev);
         resetInviteForm();
         setShowInvite(false);
         toast.success(`${inviteSelected.full_name} added to the team`);
@@ -195,7 +200,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
       .then((updated: ApiMember) => {
         setSelectedTeam((prev) =>
           prev
-            ? { ...prev, members: prev.members.map((m) => m.profile_id === profileId ? updated : m) }
+            ? { ...prev, members: prev.members.map((m) => m.profile_id === profileId ? { ...m, role: updated.role } : m) }
             : prev
         );
       })
@@ -239,8 +244,13 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
       });
   };
 
-  const memberLabel = (profileId: string) =>
-    profileId === currentUserId ? "You" : `${profileId.slice(0, 8)}…`;
+  const memberDisplayName = (member: ApiMember) =>
+    member.profile_id === currentUserId ? (`${member.full_name} (You)` || `${member.profile_id.slice(0, 8)}… (You)`) : (member.full_name || `${member.profile_id.slice(0, 8)}…`);
+
+  const memberInitials = (member: ApiMember) => {
+    if (member.full_name) return member.full_name.slice(0, 2).toUpperCase();
+    return member.profile_id.slice(0, 2).toUpperCase();
+  };
 
   return (
     <div className="max-w-450 mx-auto px-8 py-12">
@@ -393,15 +403,15 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
                         </button>
                       </div>
 
-                      {/* Email search */}
+                      {/* User search */}
                       <div className="flex gap-2">
                         <input
                           autoFocus
-                          type="email"
-                          value={inviteEmail}
-                          onChange={e => { setInviteEmail(e.target.value); setInviteSearchResults([]); setInviteSelected(null); }}
+                          type="text"
+                          value={searchQuery}
+                          onChange={e => { setSearchQuery(e.target.value); setInviteSearchResults([]); setInviteSelected(null); }}
                           onKeyDown={e => e.key === "Enter" && handleSearchProfiles()}
-                          placeholder="Search by email"
+                          placeholder="Search by name or email"
                           className="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none text-[13px] text-white placeholder:text-white/30"
                         />
                         <button
@@ -443,14 +453,31 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
                       )}
 
                       <div className="flex gap-3">
-                        <select
-                          value={inviteRole}
-                          onChange={e => setInviteRole(e.target.value as "admin" | "member")}
-                          className="px-3 py-2 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none text-[13px] text-white"
-                        >
-                          <option value="member">Member</option>
-                          <option value="admin">Admin</option>
-                        </select>
+                        <div className="relative">
+                          {openInviteRoleDropdown && (
+                            <div className="fixed inset-0 z-10" onClick={() => setOpenInviteRoleDropdown(false)} />
+                          )}
+                          <button
+                            onClick={() => setOpenInviteRoleDropdown(prev => !prev)}
+                            className="flex items-center gap-1 px-3 py-2 bg-white/5 border border-white/10 text-[13px] text-white min-w-[7rem]"
+                          >
+                            <span className="flex-1 text-left capitalize">{inviteRole}</span>
+                            <ChevronDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                          </button>
+                          {openInviteRoleDropdown && (
+                            <div className="absolute left-0 top-full mt-1 z-20 bg-[#0f0f15] border border-white/10 min-w-[7rem]">
+                              {(["member", "admin"] as const).map(role => (
+                                <button
+                                  key={role}
+                                  onClick={() => { setInviteRole(role); setOpenInviteRoleDropdown(false); }}
+                                  className={`w-full text-left px-3 py-2 text-[13px] capitalize hover:bg-white/5 transition-colors ${inviteRole === role ? "bg-white/5 text-white" : "text-white/60"}`}
+                                >
+                                  {role}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={handleAddMember}
                           disabled={!inviteSelected}
@@ -474,11 +501,11 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-[12px] font-medium shrink-0">
-                          {memberLabel(member.profile_id).slice(0, 2).toUpperCase()}
+                          {memberInitials(member)}
                         </div>
                         <div>
-                          <p className="text-[14px]">{memberLabel(member.profile_id)}</p>
-                          <p className="text-[11px] text-white/30 mt-0.5">{member.profile_id}</p>
+                          <p className="text-[14px]">{memberDisplayName(member)}</p>
+                          <p className="text-[11px] text-white/30 mt-0.5">{member.email ?? member.profile_id}</p>
                         </div>
                       </div>
 
@@ -488,23 +515,38 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
                             {member.role}
                           </span>
                         ) : (
-                          <select
-                            value={member.role}
-                            onChange={e => handleChangeRole(member.profile_id, e.target.value as "admin" | "member")}
-                            className={`bg-transparent border-none focus:outline-none text-[11px] uppercase tracking-widest cursor-pointer ${ROLE_COLOR[member.role] ?? "text-white/50"}`}
-                          >
-                            <option value="admin">Admin</option>
-                            <option value="member">Member</option>
-                          </select>
+                          <div className="relative">
+                            {openRoleDropdown === member.profile_id && (
+                              <div className="fixed inset-0 z-10" onClick={() => setOpenRoleDropdown(null)} />
+                            )}
+                            <button
+                              onClick={() => setOpenRoleDropdown(prev => prev === member.profile_id ? null : member.profile_id)}
+                              className={`flex items-center gap-1 text-[11px] uppercase tracking-widest cursor-pointer ${ROLE_COLOR[member.role] ?? "text-white/50"}`}
+                            >
+                              {member.role}
+                              <ChevronDown className="w-3 h-3 opacity-50" />
+                            </button>
+                            {openRoleDropdown === member.profile_id && (
+                              <div className="absolute right-0 top-full mt-1 z-20 bg-[#0f0f15] border border-white/10 min-w-[7rem]">
+                                {(["admin", "member"] as const).map(role => (
+                                  <button
+                                    key={role}
+                                    onClick={() => { handleChangeRole(member.profile_id, role); setOpenRoleDropdown(null); }}
+                                    className={`w-full text-left px-3 py-2 text-[11px] uppercase tracking-widest hover:bg-white/5 transition-colors ${ROLE_COLOR[role] ?? "text-white/50"} ${member.role === role ? "bg-white/5" : ""}`}
+                                  >
+                                    {role}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
-                        {member.profile_id !== currentUserId && (
-                          <button
-                            onClick={() => handleRemoveMember(member.profile_id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/10"
-                          >
-                            <X className="w-3.5 h-3.5 text-white/30 hover:text-red-400 transition-colors" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => member.profile_id !== currentUserId && handleRemoveMember(member.profile_id)}
+                          className={`p-1 hover:bg-red-500/10 transition-opacity ${member.profile_id === currentUserId ? "invisible" : "opacity-0 group-hover:opacity-100"}`}
+                        >
+                          <X className="w-3.5 h-3.5 text-white/30 hover:text-red-400 transition-colors" />
+                        </button>
                       </div>
                     </motion.div>
                   ))}
