@@ -26,14 +26,76 @@ interface Activity {
   type: "update" | "alert" | "task";
   message: string;
   timestamp: string;
+  severity: "low" | "medium" | "high" | "critical";
+  repository: string;
+}
+
+interface AnalyzeFinding {
+  id: string;
+  title: string;
+  severity: "low" | "medium" | "high" | "critical";
+  confidence?: number;
+}
+
+interface AnalyzeResponse {
+  bottlenecks?: {
+    findings?: AnalyzeFinding[];
+  };
+  analysis_debug?: {
+    repo?: {
+      analyzed_at?: string;
+    };
+  };
 }
 
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function isGitHubUrl(url?: string | null): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === "github.com" || parsed.hostname === "www.github.com";
+  } catch {
+    return false;
+  }
+}
+
+function relativeTime(input?: string): string {
+  if (!input) return "Just now";
+  const target = new Date(input).getTime();
+  if (Number.isNaN(target)) return "Just now";
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - target) / 60000));
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
+
+function severityRank(severity: Activity["severity"]): number {
+  switch (severity) {
+    case "critical":
+      return 0;
+    case "high":
+      return 1;
+    case "medium":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function activityTypeForSeverity(severity: Activity["severity"]): Activity["type"] {
+  if (severity === "critical" || severity === "high") return "alert";
+  if (severity === "medium") return "task";
+  return "update";
+}
+
 export function Dashboard() {
-  const { supabase, user, session, loading: authLoading } = useAuth();
+  const { supabase, user, session, loading: authLoading, githubToken } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.user_metadata?.user_name ?? user?.email ?? "User";
@@ -47,6 +109,8 @@ export function Dashboard() {
   const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -79,11 +143,89 @@ export function Dashboard() {
       .finally(() => setReposLoading(false));
   }, [accessToken]);
 
-  const [activities] = useState<Activity[]>([
-    { id: "1", type: "update", message: "Database schema updated in main-api", timestamp: "10 min ago" },
-    { id: "2", type: "task", message: "New bottleneck detected in payment-service", timestamp: "1 hour ago" },
-    { id: "3", type: "alert", message: "High latency detected in API Gateway", timestamp: "3 hours ago" },
-  ]);
+  useEffect(() => {
+    if (!accessToken || repositories.length === 0) {
+      setActivities([]);
+      return;
+    }
+
+    const githubRepos = repositories.filter((repo) => isGitHubUrl(repo.url));
+    if (githubRepos.length === 0) {
+      setActivities([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRecentAlerts() {
+      setAlertsLoading(true);
+
+      try {
+        const results = await Promise.allSettled(
+          githubRepos.map(async (repo) => {
+            const res = await fetch(`${API_BASE}/analyze`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                repo_url: repo.url,
+                github_token: githubToken ?? undefined,
+              }),
+            });
+
+            if (!res.ok) {
+              throw new Error(`Failed to analyze ${repo.name}`);
+            }
+
+            const data = (await res.json()) as AnalyzeResponse;
+            const analyzedAt = data.analysis_debug?.repo?.analyzed_at;
+            return (data.bottlenecks?.findings ?? []).map((finding) => ({
+              id: `${repo.id}-${finding.id}`,
+              type: activityTypeForSeverity(finding.severity),
+              message: finding.title,
+              timestamp: relativeTime(analyzedAt),
+              severity: finding.severity,
+              repository: repo.name,
+              confidence: finding.confidence ?? 0,
+            }));
+          }),
+        );
+
+        const nextActivities = results
+          .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+          .sort((a, b) => {
+            const severityDiff = severityRank(a.severity) - severityRank(b.severity);
+            if (severityDiff !== 0) return severityDiff;
+            return (b.confidence ?? 0) - (a.confidence ?? 0);
+          })
+          .slice(0, 3)
+          .map(({ id, type, message, timestamp, severity, repository }) => ({
+            id,
+            type,
+            message,
+            timestamp,
+            severity,
+            repository,
+          }));
+
+        if (!cancelled) {
+          setActivities(nextActivities);
+        }
+      } catch {
+        if (!cancelled) {
+          setActivities([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setAlertsLoading(false);
+        }
+      }
+    }
+
+    void loadRecentAlerts();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, githubToken, repositories]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
@@ -167,7 +309,7 @@ export function Dashboard() {
   };
 
   const breadcrumbs =
-    currentView === "activity" ? ["Home", "Activity"] :
+    currentView === "activity" ? ["Home", "Alerts"] :
     currentView === "settings" ? ["Home", "Settings"] :
     currentView === "teams"    ? ["Home", "Teams"] :
     currentView === "repository" && selectedRepo ? ["Home", "Repositories", selectedRepo.name] :
@@ -195,7 +337,7 @@ export function Dashboard() {
               <Link
                 href="/activity"
                 className={`transition-colors ${currentView === "activity" ? "text-white" : "text-white/60 hover:text-white"}`}
-              >Activity</Link>
+              >Alerts</Link>
               <Link
                 href="/teams"
                 className={`transition-colors ${currentView === "teams" ? "text-white" : "text-white/60 hover:text-white"}`}
@@ -446,33 +588,51 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Right Column - Activity Feed */}
+          {/* Right Column - Recent Alerts */}
           <div className="space-y-6">
             <div>
               <h3 className="text-[18px] mb-2 flex items-center gap-2">
                 <Bell className="w-4 h-4 text-blue-400" />
-                Recent Activity
+                Recent Alerts
               </h3>
-              <p className="text-[12px] text-white/50 mb-6">Real-time system updates</p>
+              <p className="text-[12px] text-white/50 mb-6">Top 3 alerts across all of your repositories</p>
             </div>
 
             <div className="space-y-3">
-              {activities.map((activity) => (
+              {alertsLoading ? (
+                <div className="border border-white/10 bg-[#0f0f15]/40 px-4 py-6 text-[12px] text-white/45 flex items-center gap-3">
+                  <Bell className="w-4 h-4 text-blue-400 animate-pulse" />
+                  Collecting alerts from your repositories...
+                </div>
+              ) : activities.length === 0 ? (
+                <div className="border border-white/10 bg-[#0f0f15]/40 px-4 py-6 text-[12px] text-white/45">
+                  No recent alerts found across your repositories.
+                </div>
+              ) : activities.map((activity) => (
                 <motion.div
                   key={activity.id}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="border-l-2 border-blue-500/30 pl-4 py-3 bg-[#0f0f15]/40 hover:bg-[#0f0f15]/60 transition-colors"
+                  className={`border-l-2 pl-4 py-3 transition-colors ${
+                    activity.severity === "critical"
+                      ? "border-red-500/50 bg-red-500/5 hover:bg-red-500/10"
+                      : activity.severity === "high" || activity.severity === "medium"
+                      ? "border-yellow-500/50 bg-yellow-500/5 hover:bg-yellow-500/10"
+                      : "border-blue-500/30 bg-[#0f0f15]/40 hover:bg-[#0f0f15]/60"
+                  }`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-2 h-2 rounded-full mt-1.5 ${
-                      activity.type === "alert" ? "bg-red-500" :
-                      activity.type === "task" ? "bg-yellow-500" :
+                      activity.severity === "critical" ? "bg-red-500" :
+                      activity.severity === "high" || activity.severity === "medium" ? "bg-yellow-500" :
                       "bg-blue-500"
-                    }`}></div>
+                    }`} />
                     <div className="flex-1">
                       <p className="text-[13px] text-white/80 mb-1">{activity.message}</p>
-                      <p className="text-[11px] text-white/40">{activity.timestamp}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-white/40">
+                        <span>{activity.repository}</span>
+                        <span>{activity.timestamp}</span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -483,7 +643,7 @@ export function Dashboard() {
               href="/activity"
               className="block w-full py-3 border border-white/10 text-[12px] text-white/60 hover:bg-white/5 hover:text-white transition-all uppercase tracking-[0.15em] text-center"
             >
-              View All Activity
+              View All Alerts
             </Link>
           </div>
         </div>

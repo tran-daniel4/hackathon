@@ -35,6 +35,26 @@ interface RepositoryDetailProps {
   repository: Repository;
 }
 
+interface RepositoryFinding {
+  id: string;
+  title: string;
+  severity: "low" | "medium" | "high" | "critical";
+  confidence?: number;
+  why?: string;
+}
+
+interface AnalyzeResponse {
+  diagrams?: RawDiagram[];
+  bottlenecks?: {
+    findings?: RepositoryFinding[];
+  };
+  analysis_debug?: {
+    repo?: {
+      analyzed_at?: string;
+    };
+  };
+}
+
 type ArchitectureView = "context" | "conceptual" | "component" | "operational";
 
 const VIEW_ID_MAP: Record<ArchitectureView, ViewId> = {
@@ -54,10 +74,30 @@ function isGitHubUrl(url?: string | null): boolean {
   }
 }
 
+function relativeTime(input?: string): string {
+  if (!input) return "Latest analysis";
+  const target = new Date(input).getTime();
+  if (Number.isNaN(target)) return "Latest analysis";
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - target) / 60000));
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
+
 export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   const { githubToken } = useAuth();
   const [currentView, setCurrentView] = useState<ArchitectureView>("component");
   const [diagrams, setDiagrams] = useState<RawDiagram[] | null>(null);
+  const [recentEvents, setRecentEvents] = useState<Array<{
+    id: string;
+    message: string;
+    time: string;
+    severity: "low" | "medium" | "high" | "critical";
+    details?: string;
+  }>>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const hasStarted = useRef(false);
@@ -68,6 +108,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
     setStatus("loading");
     setError("");
     setDiagrams(null);
+    setRecentEvents([]);
 
     try {
       const res = await fetch(`${API_BASE}/analyze`, {
@@ -84,8 +125,38 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
         throw new Error(body.detail ?? res.statusText);
       }
 
-      const data = (await res.json()) as { diagrams?: RawDiagram[] };
+      const data = (await res.json()) as AnalyzeResponse;
       if (data.diagrams?.length) setDiagrams(data.diagrams);
+      const analyzedAt = data.analysis_debug?.repo?.analyzed_at;
+      const severityRank = (severity: RepositoryFinding["severity"]) => {
+        switch (severity) {
+          case "critical":
+            return 0;
+          case "high":
+            return 1;
+          case "medium":
+            return 2;
+          default:
+            return 3;
+        }
+      };
+      setRecentEvents(
+        (data.bottlenecks?.findings ?? [])
+          .slice()
+          .sort((a, b) => {
+            const diff = severityRank(a.severity) - severityRank(b.severity);
+            if (diff !== 0) return diff;
+            return (b.confidence ?? 0) - (a.confidence ?? 0);
+          })
+          .slice(0, 5)
+          .map((finding) => ({
+            id: finding.id,
+            message: finding.title,
+            time: relativeTime(analyzedAt),
+            severity: finding.severity,
+            details: finding.why,
+          })),
+      );
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
@@ -98,14 +169,6 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
     hasStarted.current = true;
     void runAnalysis();
   }, [isGitHub, runAnalysis]);
-
-  const recentActivity = [
-    { id: "1", type: "update",  message: "API endpoint /users optimized",               time: "5 min ago",   severity: "info" },
-    { id: "2", type: "alert",   message: "Database connection pool at 85% capacity",     time: "15 min ago",  severity: "warning" },
-    { id: "3", type: "update",  message: "Cache layer updated to Redis 7.0",             time: "1 hour ago",  severity: "info" },
-    { id: "4", type: "alert",   message: "Payment gateway response time increased",      time: "2 hours ago", severity: "critical" },
-    { id: "5", type: "update",  message: "New microservice deployed: notification-service", time: "3 hours ago", severity: "info" },
-  ];
 
   const systemMetrics = [
     { label: "Active Services",   value: "12",    trend: "+2" },
@@ -242,12 +305,18 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
             <div className="border border-white/10 bg-[#0f0f15]/60 p-6">
               <h3 className="text-[16px] mb-2 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-blue-400" />
-                Recent Activity
+                Recent Alerts
               </h3>
-              <p className="text-[11px] text-white/50 mb-6">System updates and alerts</p>
+              <p className="text-[11px] text-white/50 mb-6">Top findings from the latest repository analysis</p>
 
               <div className="space-y-3">
-                {recentActivity.map((activity) => (
+                {recentEvents.length === 0 ? (
+                  <div className="border border-white/10 bg-white/5 px-4 py-6 text-[12px] text-white/45">
+                    {status === "loading"
+                      ? "Collecting recent alerts from analysis..."
+                      : "No recent alerts found for this repository."}
+                  </div>
+                ) : recentEvents.map((activity) => (
                   <motion.div
                     key={activity.id}
                     initial={{ opacity: 0, x: 20 }}
@@ -255,13 +324,13 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
                     className={`border-l-2 pl-4 py-3 ${
                       activity.severity === "critical"
                         ? "border-red-500/50 bg-red-500/5"
-                        : activity.severity === "warning"
+                        : activity.severity === "high" || activity.severity === "medium"
                         ? "border-yellow-500/50 bg-yellow-500/5"
                         : "border-blue-500/30 bg-blue-500/5"
                     }`}
                   >
                     <div className="flex items-start gap-3">
-                      {activity.severity === "critical" || activity.severity === "warning" ? (
+                      {activity.severity === "critical" || activity.severity === "high" || activity.severity === "medium" ? (
                         <AlertCircle className={`w-4 h-4 mt-0.5 ${
                           activity.severity === "critical" ? "text-red-400" : "text-yellow-400"
                         }`} />
@@ -271,6 +340,9 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
                       <div className="flex-1">
                         <p className="text-[13px] text-white/80 mb-1">{activity.message}</p>
                         <p className="text-[11px] text-white/40">{activity.time}</p>
+                        {activity.details && (
+                          <p className="text-[11px] text-white/45 mt-2">{activity.details}</p>
+                        )}
                       </div>
                     </div>
                   </motion.div>
