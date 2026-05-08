@@ -1,153 +1,268 @@
-import type { RawNode, RawEdge, RawGroup, NodeLayout, EdgeLayout, GroupLayout, DiagramLayout } from "./types";
+import type {
+  DiagramLayout,
+  EdgeLayout,
+  GroupLayout,
+  NodeLayout,
+  RawEdge,
+  RawGroup,
+  RawNode,
+} from "./types";
 
-const NODE_W = 164;
-const NODE_H = 90;
-// Group container padding
-const GRP_PAD_X  = 20;   // horizontal padding inside container
-const GRP_PAD_TOP = 44;  // vertical padding at top (room for title)
-const GRP_PAD_BOT = 20;  // vertical padding at bottom
-const GRP_GAP    = 28;   // horizontal gap between group containers
-// Legacy layer-based constants (used when no groups provided)
-const COL_GAP    = 88;
-const ROW_GAP    = 18;
-const PAD        = 48;
+const MIN_NODE_W = 172;
+const MAX_NODE_W = 300;
+const NODE_GAP_Y = 16;
+const NODE_HARD_MIN = 92;
+const GRP_PAD_X = 20;
+const GRP_PAD_TOP = 46;
+const GRP_PAD_BOT = 20;
+const GRP_GAP = 36;
+const COL_GAP = 96;
+const ROW_GAP = 22;
+const PAD = 42;
 const MIN_HEIGHT = 420;
 
 const LAYER_ORDER = ["presentation", "external", "application", "data", "infra"];
-
 const ASYNC_RE = /event|async|publish|subscribe|queue|emit/i;
 
 const EDGE_COLORS: Record<string, string> = {
   frontend: "#3b82f6",
-  backend:  "#06b6d4",
+  backend: "#06b6d4",
   database: "#eab308",
-  cache:    "#f97316",
-  queue:    "#a855f7",
-  worker:   "#22c55e",
-  external: "#6b7280",
+  cache: "#f97316",
+  queue: "#a855f7",
+  worker: "#22c55e",
+  external: "#94a3b8",
 };
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function longestTokenLength(text: string): number {
+  return text
+    .split(/\s+/)
+    .reduce((max, token) => Math.max(max, token.length), 0);
+}
+
+function estimateWrappedLines(text: string | undefined, charsPerLine: number): number {
+  if (!text) return 0;
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return 0;
+
+  let lines = 0;
+  for (const paragraph of normalized.split("\n")) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines += 1;
+      continue;
+    }
+
+    let current = 0;
+    for (const word of words) {
+      if (current === 0) {
+        current = word.length;
+        continue;
+      }
+      if (current + 1 + word.length <= charsPerLine) {
+        current += 1 + word.length;
+      } else {
+        lines += 1;
+        current = word.length;
+      }
+    }
+    if (current > 0) lines += 1;
+  }
+  return Math.max(lines, 1);
+}
+
+function measureNode(node: RawNode): Pick<NodeLayout, "width" | "height"> {
+  const label = node.label.trim();
+  const description = node.description?.trim() ?? "";
+  const longestWord = Math.max(longestTokenLength(label), longestTokenLength(description));
+  const contentWidth = Math.max(
+    MIN_NODE_W,
+    118 + label.length * 3.6,
+    description ? 188 + Math.min(description.length * 0.55, 92) : 0,
+    longestWord * 8.4 + 76,
+  );
+  const width = clamp(Math.ceil(contentWidth), MIN_NODE_W, MAX_NODE_W);
+  const labelLines = estimateWrappedLines(label, Math.max(14, Math.floor((width - 76) / 7.1)));
+  const descriptionLines = estimateWrappedLines(description, Math.max(18, Math.floor((width - 30) / 6.2)));
+
+  const iconRowHeight = Math.max(34, labelLines * 16 + 8);
+  const footerHeight = 18;
+  const descriptionHeight = descriptionLines > 0 ? descriptionLines * 13 + 10 : 0;
+  const height = Math.max(NODE_HARD_MIN, 20 + iconRowHeight + footerHeight + descriptionHeight + 12);
+
+  return { width, height };
+}
 
 function getColumnKey(node: RawNode): string {
   return node.group ?? node.layer ?? node.type ?? "application";
 }
 
-function cubicPath(sx: number, sy: number, tx: number, ty: number): string {
-  const dx = tx - sx;
-  if (Math.abs(dx) > 24) {
-    const cp1x = sx + dx * 0.45;
-    const cp2x = tx - dx * 0.45;
-    return `M ${sx},${sy} C ${cp1x},${sy} ${cp2x},${ty} ${tx},${ty}`;
-  }
-  const offset = 60;
-  return `M ${sx},${sy} C ${sx + offset},${sy} ${tx + offset},${ty} ${tx},${ty}`;
+function distributedOffset(index: number, count: number, spacing: number): number {
+  if (count <= 1) return 0;
+  return (index - (count - 1) / 2) * spacing;
 }
 
-function anchors(src: NodeLayout, tgt: NodeLayout) {
-  const threshold = 24;
-  if (src.x < tgt.x - threshold) {
-    return { sx: src.x + NODE_W, sy: src.y + NODE_H / 2, tx: tgt.x, ty: tgt.y + NODE_H / 2 };
+function cubicGeometry(
+  src: NodeLayout,
+  tgt: NodeLayout,
+  sourceIndex: number,
+  sourceCount: number,
+  targetIndex: number,
+  targetCount: number,
+) {
+  const horizontal = Math.abs(src.x - tgt.x) >= Math.abs(src.y - tgt.y);
+
+  if (horizontal) {
+    const srcOnLeft = src.x <= tgt.x;
+    const sx = srcOnLeft ? src.x + src.width : src.x;
+    const tx = srcOnLeft ? tgt.x : tgt.x + tgt.width;
+    const sy = src.y + src.height / 2 + distributedOffset(sourceIndex, sourceCount, 14);
+    const ty = tgt.y + tgt.height / 2 + distributedOffset(targetIndex, targetCount, 14);
+    const dx = tx - sx;
+    const bend = Math.max(56, Math.abs(dx) * 0.34);
+    const lane = distributedOffset(sourceIndex, sourceCount, 18) * 0.5 + distributedOffset(targetIndex, targetCount, 18) * 0.35;
+    const c1x = sx + (srcOnLeft ? bend : -bend);
+    const c2x = tx - (srcOnLeft ? bend : -bend);
+    const c1y = sy + lane;
+    const c2y = ty - lane;
+    return { sx, sy, c1x, c1y, c2x, c2y, tx, ty };
   }
-  if (src.x > tgt.x + threshold) {
-    return { sx: src.x, sy: src.y + NODE_H / 2, tx: tgt.x + NODE_W, ty: tgt.y + NODE_H / 2 };
-  }
-  const below = src.y < tgt.y;
-  return {
-    sx: src.x + NODE_W * 0.5, sy: src.y + (below ? NODE_H : 0),
-    tx: tgt.x + NODE_W * 0.5, ty: tgt.y + (below ? 0 : NODE_H),
-  };
+
+  const srcOnTop = src.y <= tgt.y;
+  const sy = srcOnTop ? src.y + src.height : src.y;
+  const ty = srcOnTop ? tgt.y : tgt.y + tgt.height;
+  const sx = src.x + src.width / 2 + distributedOffset(sourceIndex, sourceCount, 18);
+  const tx = tgt.x + tgt.width / 2 + distributedOffset(targetIndex, targetCount, 18);
+  const dy = ty - sy;
+  const bend = Math.max(48, Math.abs(dy) * 0.34);
+  const lane = distributedOffset(sourceIndex, sourceCount, 12) * 0.45 + distributedOffset(targetIndex, targetCount, 12) * 0.3;
+  const c1x = sx + lane;
+  const c2x = tx - lane;
+  const c1y = sy + (srcOnTop ? bend : -bend);
+  const c2y = ty - (srcOnTop ? bend : -bend);
+  return { sx, sy, c1x, c1y, c2x, c2y, tx, ty };
 }
 
-function edgeLabelPos(sx: number, sy: number, tx: number, ty: number): { labelX: number; labelY: number } {
-  // Midpoint of the cubic bezier S-curve is (sx+tx)/2, (sy+ty)/2
-  return { labelX: (sx + tx) / 2, labelY: (sy + ty) / 2 };
+function cubicPath(points: ReturnType<typeof cubicGeometry>): string {
+  return `M ${points.sx},${points.sy} C ${points.c1x},${points.c1y} ${points.c2x},${points.c2y} ${points.tx},${points.ty}`;
+}
+
+function edgeLabelPos(points: ReturnType<typeof cubicGeometry>) {
+  const t = 0.5;
+  const inv = 1 - t;
+  const x =
+    inv * inv * inv * points.sx +
+    3 * inv * inv * t * points.c1x +
+    3 * inv * t * t * points.c2x +
+    t * t * t * points.tx;
+  const y =
+    inv * inv * inv * points.sy +
+    3 * inv * inv * t * points.c1y +
+    3 * inv * t * t * points.c2y +
+    t * t * t * points.ty;
+  return { labelX: x, labelY: y };
 }
 
 export function computeLayout(nodes: RawNode[], rawEdges: RawEdge[], rawGroups?: RawGroup[]): DiagramLayout {
   if (nodes.length === 0) return { nodes: [], edges: [], groups: [], width: 0, height: 0 };
 
   const hasGroups = rawGroups && rawGroups.length > 0;
-
-  if (hasGroups) {
-    return computeGroupedLayout(nodes, rawEdges, rawGroups!);
-  }
-  return computeLayerLayout(nodes, rawEdges);
+  return hasGroups ? computeGroupedLayout(nodes, rawEdges, rawGroups!) : computeLayerLayout(nodes, rawEdges);
 }
 
-// ── Group-based column layout ─────────────────────────────────────────────────
-
 function computeGroupedLayout(nodes: RawNode[], rawEdges: RawEdge[], rawGroups: RawGroup[]): DiagramLayout {
-  const groupDefs = new Map(rawGroups.map(g => [g.id, g]));
+  const groupDefs = new Map(rawGroups.map((group) => [group.id, group]));
+  const measured = new Map(nodes.map((node) => [node.id, { ...measureNode(node) }]));
 
-  // Build ordered column list from group definitions
-  const columnOrder: string[] = rawGroups.map(g => g.id);
-  // Append any nodes whose column key isn't in the group list
+  const columnOrder: string[] = rawGroups.map((group) => group.id);
   for (const node of nodes) {
     const key = getColumnKey(node);
     if (!columnOrder.includes(key)) columnOrder.push(key);
   }
 
-  // Assign nodes to columns
-  const columns = new Map<string, RawNode[]>(columnOrder.map(k => [k, []]));
+  const columns = new Map<string, RawNode[]>(columnOrder.map((key) => [key, []]));
   for (const node of nodes) {
-    const key = getColumnKey(node);
-    columns.get(key)!.push(node);
+    columns.get(getColumnKey(node))!.push(node);
   }
 
-  // Drop empty columns
-  const activeColumns = columnOrder.filter(k => (columns.get(k)?.length ?? 0) > 0);
+  const activeColumns = columnOrder.filter((key) => (columns.get(key)?.length ?? 0) > 0);
+  const columnWidths = new Map<string, number>();
+  const columnHeights = new Map<string, number>();
 
-  // Container dimensions
-  const containerW = NODE_W + 2 * GRP_PAD_X;
-  const containerH = (colKey: string) => {
-    const count = columns.get(colKey)!.length;
-    return GRP_PAD_TOP + count * NODE_H + Math.max(0, count - 1) * 14 + GRP_PAD_BOT;
-  };
+  for (const key of activeColumns) {
+    const columnNodes = columns.get(key)!;
+    const innerWidth = Math.max(...columnNodes.map((node) => measured.get(node.id)!.width));
+    const stackedHeight = columnNodes.reduce((sum, node, index) => {
+      const size = measured.get(node.id)!;
+      return sum + size.height + (index > 0 ? NODE_GAP_Y : 0);
+    }, 0);
+    columnWidths.set(key, innerWidth + GRP_PAD_X * 2);
+    columnHeights.set(key, GRP_PAD_TOP + stackedHeight + GRP_PAD_BOT);
+  }
 
-  const maxH = Math.max(...activeColumns.map(containerH), MIN_HEIGHT - PAD * 2);
+  const maxH = Math.max(...activeColumns.map((key) => columnHeights.get(key)!), MIN_HEIGHT - PAD * 2);
   const canvasH = PAD * 2 + maxH;
-  const canvasW = PAD * 2 + activeColumns.length * containerW + Math.max(0, activeColumns.length - 1) * GRP_GAP;
+  const canvasW =
+    PAD * 2 +
+    activeColumns.reduce((sum, key) => sum + columnWidths.get(key)!, 0) +
+    Math.max(0, activeColumns.length - 1) * GRP_GAP;
 
-  const posMap = new Map<string, NodeLayout>();
   const positionedNodes: NodeLayout[] = [];
   const groupLayouts: GroupLayout[] = [];
+  const posMap = new Map<string, NodeLayout>();
 
-  activeColumns.forEach((colKey, colIdx) => {
-    const colNodes = columns.get(colKey)!;
-    const cH = containerH(colKey);
-    const containerX = PAD + colIdx * (containerW + GRP_GAP);
-    const containerY = (canvasH - cH) / 2;
+  let cursorX = PAD;
+  for (const key of activeColumns) {
+    const containerW = columnWidths.get(key)!;
+    const containerH = columnHeights.get(key)!;
+    const containerY = (canvasH - containerH) / 2;
+    const group = groupDefs.get(key);
 
-    const groupDef = groupDefs.get(colKey);
     groupLayouts.push({
-      id: colKey,
-      label: groupDef?.label ?? colKey,
-      x: containerX,
+      id: key,
+      label: group?.label ?? key,
+      x: cursorX,
       y: containerY,
       width: containerW,
-      height: cH,
+      height: containerH,
     });
 
-    colNodes.forEach((node, rowIdx) => {
-      const nl: NodeLayout = {
+    let cursorY = containerY + GRP_PAD_TOP;
+    const innerWidth = containerW - GRP_PAD_X * 2;
+    for (const node of columns.get(key)!) {
+      const size = measured.get(node.id)!;
+      const positioned: NodeLayout = {
         ...node,
-        x: containerX + GRP_PAD_X,
-        y: containerY + GRP_PAD_TOP + rowIdx * (NODE_H + 14),
-        width: NODE_W,
-        height: NODE_H,
+        x: cursorX + GRP_PAD_X + (innerWidth - size.width) / 2,
+        y: cursorY,
+        width: size.width,
+        height: size.height,
       };
-      posMap.set(node.id, nl);
-      positionedNodes.push(nl);
-    });
-  });
+      posMap.set(node.id, positioned);
+      positionedNodes.push(positioned);
+      cursorY += size.height + NODE_GAP_Y;
+    }
 
-  const positionedEdges = buildEdges(rawEdges, posMap);
-  return { nodes: positionedNodes, edges: positionedEdges, groups: groupLayouts, width: canvasW, height: canvasH };
+    cursorX += containerW + GRP_GAP;
+  }
+
+  return {
+    nodes: positionedNodes,
+    edges: buildEdges(rawEdges, posMap),
+    groups: groupLayouts,
+    width: canvasW,
+    height: canvasH,
+  };
 }
 
-// ── Legacy layer-based column layout (no groups) ──────────────────────────────
-
 function computeLayerLayout(nodes: RawNode[], rawEdges: RawEdge[]): DiagramLayout {
+  const measured = new Map(nodes.map((node) => [node.id, { ...measureNode(node) }]));
   const layerGroups = new Map<string, RawNode[]>();
+
   for (const node of nodes) {
     const key = node.layer ?? node.type ?? "application";
     if (!layerGroups.has(key)) layerGroups.set(key, []);
@@ -160,58 +275,101 @@ function computeLayerLayout(nodes: RawNode[], rawEdges: RawEdge[]): DiagramLayou
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
-  const maxCount = Math.max(...sortedLayers.map(l => layerGroups.get(l)!.length));
-  const rawH = PAD * 2 + maxCount * NODE_H + Math.max(0, maxCount - 1) * ROW_GAP;
-  const canvasH = Math.max(rawH, MIN_HEIGHT);
-  const canvasW = PAD * 2 + sortedLayers.length * NODE_W + Math.max(0, sortedLayers.length - 1) * COL_GAP;
-
-  const posMap = new Map<string, NodeLayout>();
-  const positionedNodes: NodeLayout[] = [];
-
-  sortedLayers.forEach((layer, colIdx) => {
+  const columnWidths = new Map<string, number>();
+  let maxColumnHeight = 0;
+  for (const layer of sortedLayers) {
     const layerNodes = layerGroups.get(layer)!;
-    const colX = PAD + colIdx * (NODE_W + COL_GAP);
-    const totalH = layerNodes.length * NODE_H + Math.max(0, layerNodes.length - 1) * ROW_GAP;
-    const startY = (canvasH - totalH) / 2;
+    const width = Math.max(...layerNodes.map((node) => measured.get(node.id)!.width));
+    const height = layerNodes.reduce((sum, node, index) => {
+      const size = measured.get(node.id)!;
+      return sum + size.height + (index > 0 ? ROW_GAP : 0);
+    }, 0);
+    columnWidths.set(layer, width);
+    maxColumnHeight = Math.max(maxColumnHeight, height);
+  }
 
-    layerNodes.forEach((node, rowIdx) => {
-      const nl: NodeLayout = {
+  const canvasH = Math.max(PAD * 2 + maxColumnHeight, MIN_HEIGHT);
+  const canvasW =
+    PAD * 2 +
+    sortedLayers.reduce((sum, layer) => sum + columnWidths.get(layer)!, 0) +
+    Math.max(0, sortedLayers.length - 1) * COL_GAP;
+
+  const positionedNodes: NodeLayout[] = [];
+  const posMap = new Map<string, NodeLayout>();
+  let cursorX = PAD;
+
+  for (const layer of sortedLayers) {
+    const layerNodes = layerGroups.get(layer)!;
+    const columnWidth = columnWidths.get(layer)!;
+    const totalHeight = layerNodes.reduce((sum, node, index) => {
+      const size = measured.get(node.id)!;
+      return sum + size.height + (index > 0 ? ROW_GAP : 0);
+    }, 0);
+    let cursorY = (canvasH - totalHeight) / 2;
+
+    for (const node of layerNodes) {
+      const size = measured.get(node.id)!;
+      const positioned: NodeLayout = {
         ...node,
-        x: colX,
-        y: startY + rowIdx * (NODE_H + ROW_GAP),
-        width: NODE_W,
-        height: NODE_H,
+        x: cursorX + (columnWidth - size.width) / 2,
+        y: cursorY,
+        width: size.width,
+        height: size.height,
       };
-      posMap.set(node.id, nl);
-      positionedNodes.push(nl);
-    });
-  });
+      posMap.set(node.id, positioned);
+      positionedNodes.push(positioned);
+      cursorY += size.height + ROW_GAP;
+    }
 
-  const positionedEdges = buildEdges(rawEdges, posMap);
-  return { nodes: positionedNodes, edges: positionedEdges, groups: [], width: canvasW, height: canvasH };
+    cursorX += columnWidth + COL_GAP;
+  }
+
+  return {
+    nodes: positionedNodes,
+    edges: buildEdges(rawEdges, posMap),
+    groups: [],
+    width: canvasW,
+    height: canvasH,
+  };
 }
 
-// ── Shared edge builder ───────────────────────────────────────────────────────
-
 function buildEdges(rawEdges: RawEdge[], posMap: Map<string, NodeLayout>): EdgeLayout[] {
-  return rawEdges
-    .filter(e => posMap.has(e.source) && posMap.has(e.target))
-    .map(e => {
-      const src = posMap.get(e.source)!;
-      const tgt = posMap.get(e.target)!;
-      const { sx, sy, tx, ty } = anchors(src, tgt);
-      const { labelX, labelY } = edgeLabelPos(sx, sy, tx, ty);
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        label: e.label,
-        isAsync: ASYNC_RE.test(e.label ?? ""),
-        d: cubicPath(sx, sy, tx, ty),
-        color: EDGE_COLORS[src.type] ?? "#6b7280",
-        labelX,
-        labelY,
-        confidence: e.confidence,
-      };
-    });
+  const validEdges = rawEdges.filter((edge) => posMap.has(edge.source) && posMap.has(edge.target));
+  const sourceBuckets = new Map<string, RawEdge[]>();
+  const targetBuckets = new Map<string, RawEdge[]>();
+
+  for (const edge of validEdges) {
+    if (!sourceBuckets.has(edge.source)) sourceBuckets.set(edge.source, []);
+    if (!targetBuckets.has(edge.target)) targetBuckets.set(edge.target, []);
+    sourceBuckets.get(edge.source)!.push(edge);
+    targetBuckets.get(edge.target)!.push(edge);
+  }
+
+  return validEdges.map((edge) => {
+    const src = posMap.get(edge.source)!;
+    const tgt = posMap.get(edge.target)!;
+    const sourceGroup = sourceBuckets.get(edge.source)!;
+    const targetGroup = targetBuckets.get(edge.target)!;
+    const sourceIndex = sourceGroup.findIndex((candidate) => candidate.id === edge.id);
+    const targetIndex = targetGroup.findIndex((candidate) => candidate.id === edge.id);
+    const points = cubicGeometry(src, tgt, sourceIndex, sourceGroup.length, targetIndex, targetGroup.length);
+    const label = edge.label?.trim() || undefined;
+    const { labelX, labelY } = edgeLabelPos(points);
+
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label,
+      isAsync: ASYNC_RE.test(label ?? ""),
+      d: cubicPath(points),
+      color: EDGE_COLORS[src.type] ?? "#94a3b8",
+      labelX,
+      labelY,
+      confidence: edge.confidence,
+      ...points,
+      sourceSeverity: src.severity ?? null,
+      targetSeverity: tgt.severity ?? null,
+    };
+  });
 }

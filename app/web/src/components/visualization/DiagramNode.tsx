@@ -67,6 +67,7 @@ export function DiagramNode({ node }: { node: NodeLayout }) {
             ].join(", "),
             position: "relative",
             overflow: "hidden",
+            minHeight: node.height,
           }}
         >
           {/* Coloured top accent stripe */}
@@ -108,9 +109,9 @@ export function DiagramNode({ node }: { node: NodeLayout }) {
                 letterSpacing: "0.01em",
                 lineHeight: 1.35,
                 flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
+                display: "block",
               }}
             >
               {node.label}
@@ -160,9 +161,8 @@ export function DiagramNode({ node }: { node: NodeLayout }) {
                 fontWeight: 400,
                 color: "rgba(221,226,240,0.55)",
                 lineHeight: 1.4,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
                 letterSpacing: "0.01em",
               }}
             >

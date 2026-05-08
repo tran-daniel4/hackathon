@@ -11,6 +11,8 @@ from core.config import settings
 from endpoints.auth import router as auth_router
 from endpoints.analyze import router as analyze_router
 from endpoints.repos import router as repos_router
+from endpoints.teams import router as teams_router
+from endpoints.profiles import router as profiles_router
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -30,6 +32,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(analyze_router)
 app.include_router(repos_router)
+app.include_router(teams_router)
+app.include_router(profiles_router)
 
 @app.get("/health")
 def health():

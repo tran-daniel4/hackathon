@@ -2,6 +2,8 @@
 Backward-compatibility adapter: converts new GraphFacts → old ArchGraph format.
 The old ArchGraph is still consumed by rules_engine, aggregator, and diagram generators.
 """
+from collections import Counter
+
 from graph.models import GraphFacts
 
 # Import old models from their original location
@@ -74,4 +76,49 @@ def graph_facts_to_arch_graph(facts: GraphFacts) -> ArchGraph:
             },
         ))
 
+    _add_inferred_client_edges(facts, nodes, edges)
+
     return ArchGraph(nodes=nodes, edges=edges)
+
+
+def _add_inferred_client_edges(facts: GraphFacts, nodes: list[Node], edges: list[Edge]) -> None:
+    node_type_by_id = {node.id: node.type for node in nodes}
+    client_ids = [node.id for node in nodes if node.type == "frontend"]
+    if not client_ids:
+        return
+
+    route_counts: Counter[str] = Counter(
+        api.component_id
+        for api in facts.apis
+        if node_type_by_id.get(api.component_id) == "service"
+    )
+    if not route_counts:
+        return
+
+    existing_pairs = {(edge.source, edge.target) for edge in edges}
+    ranked_targets = sorted(
+        route_counts,
+        key=lambda node_id: (
+            0 if any(token in node_id for token in ("api", "gateway")) else 1,
+            -route_counts[node_id],
+            node_id,
+        ),
+    )
+
+    for client_id in client_ids:
+        if any((client_id, target_id) in existing_pairs for target_id in ranked_targets):
+            continue
+
+        target_id = ranked_targets[0]
+        edges.append(Edge(
+            source=client_id,
+            target=target_id,
+            type="http",
+            label="HTTP request",
+            confidence="inferred",
+            evidence={
+                "label": "HTTP request",
+                "protocol": "http",
+                "operation": "request",
+            },
+        ))

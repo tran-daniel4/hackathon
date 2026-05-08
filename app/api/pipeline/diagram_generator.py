@@ -406,11 +406,25 @@ def _graph_nodes_to_diagram(
     sev_index: dict[str, str],
     label_prefix: str = "",
 ) -> list[DiagramNode]:
+    node_by_id = {node.id: node for node in graph.nodes}
+    incoming_by_target: dict[str, list] = {}
+    outgoing_by_source: dict[str, list] = {}
+
+    for edge in graph.edges:
+        incoming_by_target.setdefault(edge.target, []).append(edge)
+        outgoing_by_source.setdefault(edge.source, []).append(edge)
+
     nodes: list[DiagramNode] = []
     for n in graph.nodes:
         ui_type = _TO_UI_TYPE.get(n.type, "backend")
         layer   = _TYPE_LAYER.get(ui_type, "application")
-        group   = _TYPE_GROUP.get(ui_type, "core")
+        group   = _component_group_for_node(
+            node=n,
+            ui_type=ui_type,
+            node_by_id=node_by_id,
+            incoming_by_target=incoming_by_target,
+            outgoing_by_source=outgoing_by_source,
+        )
         nodes.append(DiagramNode(
             id=n.id,
             label=f"{label_prefix}{n.label}",
@@ -434,7 +448,7 @@ def _graph_edges_to_diagram(graph: ArchGraph) -> list[DiagramEdge]:
         if eid in seen:
             continue
         seen.add(eid)
-        edges.append(DiagramEdge(id=eid, source=e.source, target=e.target, label=e.type,
+        edges.append(DiagramEdge(id=eid, source=e.source, target=e.target, label=_edge_label(e),
                                  confidence=e.confidence))
     return edges
 
@@ -463,3 +477,48 @@ def _worst_severity(sev_index: dict[str, str], node_ids: list[str]) -> str | Non
     if not sevs:
         return None
     return min(sevs, key=lambda s: _SEVERITY_RANK.get(s, 99))
+
+
+def _edge_label(edge) -> str:
+    explicit = (edge.label or "").strip()
+    if explicit:
+        return explicit
+
+    return {
+        "http": "HTTP request",
+        "reads/writes": "SQL query",
+        "caches": "Cache lookup",
+        "calls": "External call",
+        "publishes": "Async event",
+        "consumes": "Queue consume",
+    }.get(edge.type, edge.type.replace("/", " "))
+
+
+def _component_group_for_node(
+    *,
+    node,
+    ui_type: str,
+    node_by_id: dict[str, object],
+    incoming_by_target: dict[str, list],
+    outgoing_by_source: dict[str, list],
+) -> str:
+    if ui_type != "backend":
+        return _TYPE_GROUP.get(ui_type, "core")
+
+    incoming = incoming_by_target.get(node.id, [])
+    outgoing = outgoing_by_source.get(node.id, [])
+
+    if any(
+        getattr(edge, "type", "") == "http"
+        and getattr(node_by_id.get(edge.source), "type", "") == "frontend"
+        for edge in incoming
+    ):
+        return "gateway"
+
+    if any(
+        getattr(node_by_id.get(edge.target), "type", "") in {"external_api", "queue"}
+        for edge in outgoing
+    ):
+        return "supporting"
+
+    return "core"

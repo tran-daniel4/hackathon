@@ -4,43 +4,48 @@ import type { EdgeLayout } from "./types";
 
 interface DiagramEdgeProps {
   edge: EdgeLayout;
+  isRequestPath?: boolean;
+  requestFlowWeight?: number;
+  suppressLabel?: boolean;
 }
 
-export function DiagramEdge({ edge }: DiagramEdgeProps) {
-  const { d, color, isAsync, label, labelX, labelY, confidence } = edge;
+export function DiagramEdge({
+  edge,
+  isRequestPath = false,
+  requestFlowWeight = 0,
+  suppressLabel = false,
+}: DiagramEdgeProps) {
+  const { d, color, label, labelX, labelY, confidence } = edge;
   const isInferred = confidence === "inferred";
-  const dashArray = isInferred ? "3 9" : isAsync ? "5 10" : "8 8";
-  const animName = isAsync ? "arch-flow-async" : "arch-flow-sync";
-  const animDur = isAsync ? "2.2s" : "1.5s";
-  const labelW = label ? Math.max(label.length * 5.5 + 12, 28) : 0;
-  const hypothesisPillW = 62;
+  const effectiveLabel = suppressLabel ? undefined : label;
+  const labelW = effectiveLabel ? Math.max(effectiveLabel.length * 5.4 + 14, 34) : 0;
+  const baseOpacity = isRequestPath ? 0.56 : isInferred ? 0.1 : 0.16;
+  const glowOpacity = isRequestPath ? 0.2 : 0.06;
+  const strokeWidth = isRequestPath ? 2 + Math.min(requestFlowWeight, 3) * 0.22 : 1.35;
+  const glowWidth = isRequestPath ? 3.1 : 2;
 
   return (
     <g>
-      {/* Ghost trail */}
       <path
         d={d}
         stroke={color}
-        strokeWidth={1.5}
-        strokeOpacity={isInferred ? 0.08 : 0.18}
+        strokeWidth={strokeWidth}
+        strokeOpacity={baseOpacity}
         fill="none"
         strokeLinecap="round"
       />
 
-      {/* Animated flow dashes */}
       <path
         d={d}
         stroke={color}
-        strokeWidth={2.2}
+        strokeWidth={glowWidth}
+        strokeOpacity={glowOpacity}
         fill="none"
         strokeLinecap="round"
-        strokeDasharray={dashArray}
         filter="url(#arch-edgeglow)"
-        style={{ animation: `${animName} ${animDur} linear infinite` }}
       />
 
-      {/* Edge label pill */}
-      {label && (
+      {effectiveLabel && (
         <g>
           <rect
             x={labelX - labelW / 2}
@@ -49,9 +54,9 @@ export function DiagramEdge({ edge }: DiagramEdgeProps) {
             height={15}
             rx={4}
             fill="#0c0c1e"
-            fillOpacity={0.88}
+            fillOpacity={isRequestPath ? 0.96 : 0.86}
             stroke={color}
-            strokeOpacity={0.25}
+            strokeOpacity={isRequestPath ? 0.34 : 0.18}
             strokeWidth={0.8}
           />
           <text
@@ -59,27 +64,26 @@ export function DiagramEdge({ edge }: DiagramEdgeProps) {
             y={labelY + 1}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="rgba(255,255,255,0.45)"
+            fill={isRequestPath ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.42)"}
             fontSize={8.5}
             fontFamily="inherit"
             letterSpacing="0.04em"
           >
-            {label}
+            {effectiveLabel}
           </text>
         </g>
       )}
 
-      {/* Hypothesis pill — shown below the label for inferred edges */}
-      {isInferred && (
+      {isInferred && !suppressLabel && (
         <g>
           <rect
-            x={labelX - hypothesisPillW / 2}
+            x={labelX - 26}
             y={labelY + 10}
-            width={hypothesisPillW}
+            width={52}
             height={13}
             rx={3}
-            fill="rgba(168,85,247,0.12)"
-            stroke="rgba(168,85,247,0.30)"
+            fill="rgba(168,85,247,0.1)"
+            stroke="rgba(168,85,247,0.22)"
             strokeWidth={0.7}
           />
           <text
@@ -87,13 +91,13 @@ export function DiagramEdge({ edge }: DiagramEdgeProps) {
             y={labelY + 17}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="rgba(168,85,247,0.65)"
-            fontSize={7.5}
+            fill="rgba(168,85,247,0.62)"
+            fontSize={7.4}
             fontFamily="inherit"
             fontStyle="italic"
             letterSpacing="0.05em"
           >
-            hypothesis
+            inferred
           </text>
         </g>
       )}

@@ -50,7 +50,7 @@ _FRAMEWORKS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Blazor",          [(".csproj", "Microsoft.AspNetCore.Components.WebAssembly")]),
 ]
 
-_CONTAINER_DIRS = {"services", "apps", "packages", "modules", "microservices"}
+_CONTAINER_DIRS = {"app", "apps", "application", "applications", "services", "packages", "modules", "microservices"}
 
 _ENTRY_FILES = {
     "main.py", "app.py", "server.py", "wsgi.py", "asgi.py",

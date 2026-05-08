@@ -22,6 +22,7 @@ _REDIS_PATTERNS = [
         r"StackExchange\.Redis",
         r"AddRedis\s*\(",
         r"Aspire\.Hosting\.Redis",
+        r"\bredis\.(?:get|set|setex|delete|del|exists|hget|hset|mget|mset)\s*\(",
     ]
 ]
 

@@ -66,6 +66,16 @@ export interface EdgeLayout {
   labelX: number;
   labelY: number;
   confidence?: "verified" | "inferred";
+  sx: number;
+  sy: number;
+  c1x: number;
+  c1y: number;
+  c2x: number;
+  c2y: number;
+  tx: number;
+  ty: number;
+  sourceSeverity?: SeverityType | null;
+  targetSeverity?: SeverityType | null;
 }
 
 export interface DiagramLayout {

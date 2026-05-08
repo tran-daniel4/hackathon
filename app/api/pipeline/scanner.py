@@ -263,7 +263,7 @@ _SPRING_METHOD_RE = re.compile(
 
 # ── Service detection helpers ──────────────────────────────────────────────────
 
-_CONTAINER_DIRS = {"services", "apps", "packages", "modules", "microservices"}
+_CONTAINER_DIRS = {"app", "apps", "application", "applications", "services", "packages", "modules", "microservices"}
 _PROJECTISH_NAMES = {"api", "server", "backend", "frontend", "web", "apphost", "service"}
 _ENTRY_FILES = {
     "main.py", "app.py", "server.py", "wsgi.py", "asgi.py",

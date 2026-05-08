@@ -15,7 +15,7 @@ def file_parts(path: str) -> list[str]:
     return [p for p in path.replace("\\", "/").split("/") if p]
 
 
-_CONTAINER_DIRS = {"services", "apps", "packages", "modules", "microservices"}
+_CONTAINER_DIRS = {"app", "apps", "application", "applications", "services", "packages", "modules", "microservices"}
 _SOURCE_ROOTS = {"src", "source"}
 _PROJECT_EXTS = {".csproj", ".fsproj", ".vbproj", ".sln"}
 _PROJECT_ENTRY_FILES = {"Program.cs", "Startup.cs", "AppHost.cs"}
