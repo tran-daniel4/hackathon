@@ -62,6 +62,7 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
 
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +107,8 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
 
   const handleConfirm = async () => {
     const selected = filteredRepos.filter((r) => selectedIds.has(r.id));
+    if (selected.length === 0) return;
+    setIsSaving(true);
     try {
       for (const repo of selected) {
         const saved = await saveRepo(repo.name, repo.html_url, accessToken);
@@ -121,6 +124,8 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
       } else {
         toast.error("Failed to save repositories");
       }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -308,12 +313,13 @@ r.full_name.toLowerCase().includes(search.toLowerCase())
                     Cancel
                   </button>
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={isSaving ? {} : { scale: 1.02 }}
+                    whileTap={isSaving ? {} : { scale: 0.98 }}
                     onClick={handleConfirm}
-                    className="px-5 py-2.5 bg-white text-black hover:bg-white/90 transition-colors text-[11px] uppercase tracking-[0.15em]"
+                    disabled={isSaving}
+                    className="px-5 py-2.5 bg-white text-black hover:bg-white/90 transition-colors text-[11px] uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Add Selected
+                    {isSaving ? "Adding…" : "Add Selected"}
                   </motion.button>
                 </div>
               </motion.div>

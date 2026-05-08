@@ -1,20 +1,27 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Layers } from "lucide-react";
+import {
+  Activity,
+  AlertCircle,
+  Code,
+  Layers,
+  LayoutGrid,
+  Loader2,
+  Settings as SettingsIcon,
+  TrendingUp,
+} from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { DiagramView } from "@/components/DiagramView";
 import type { RawDiagram, ViewId } from "@/components/visualization/types";
 
 const ArchDiagram = dynamic(
-  () =>
-    import("@/components/visualization/ArchDiagram").then(
-      m => ({ default: m.ArchDiagram })
-    ),
-  { ssr: false }
+  () => import("@/components/visualization/ArchDiagram").then((m) => ({ default: m.ArchDiagram })),
+  { ssr: false },
 );
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 interface Repository {
   id: string;
@@ -37,66 +44,128 @@ const VIEW_ID_MAP: Record<ArchitectureView, ViewId> = {
   operational: "operational",
 };
 
+function isGitHubUrl(url?: string | null): boolean {
+  if (!url) return false;
+  try {
+    const { hostname } = new URL(url);
+    return hostname === "github.com" || hostname === "www.github.com";
+  } catch {
+    return false;
+  }
+}
+
 export function RepositoryDetail({ repository }: RepositoryDetailProps) {
-  const { session } = useAuth();
+  const { githubToken } = useAuth();
   const [currentView, setCurrentView] = useState<ArchitectureView>("component");
   const [diagrams, setDiagrams] = useState<RawDiagram[] | null>(null);
-  const githubToken =
-    (session as { provider_token?: string | null } | null)?.provider_token ?? null;
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [error, setError] = useState("");
+  const hasStarted = useRef(false);
+
+  const isGitHub = isGitHubUrl(repository.url);
+
+  useEffect(() => {
+    if (!isGitHub || hasStarted.current) return;
+    hasStarted.current = true;
+    setStatus("loading");
+
+    fetch(`${API_BASE}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repo_url: repository.url,
+        github_token: githubToken ?? undefined,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) return res.json().then((b) => { throw new Error(b.detail ?? res.statusText); });
+        return res.json();
+      })
+      .then((data: { diagrams?: RawDiagram[] }) => {
+        if (data.diagrams?.length) setDiagrams(data.diagrams);
+        setStatus("done");
+      })
+      .catch((err: Error) => {
+        setError(err.message);
+        setStatus("error");
+      });
+  }, [isGitHub, githubToken, repository.url]);
 
   const recentActivity = [
-    { id: "1", type: "update",  message: "API endpoint /users optimized",                  time: "5 min ago",  severity: "info" },
-    { id: "2", type: "alert",   message: "Database connection pool at 85% capacity",        time: "15 min ago", severity: "warning" },
-    { id: "3", type: "update",  message: "Cache layer updated to Redis 7.0",                time: "1 hour ago", severity: "info" },
-    { id: "4", type: "alert",   message: "Payment gateway response time increased",         time: "2 hours ago",severity: "critical" },
-    { id: "5", type: "update",  message: "New microservice deployed: notification-service", time: "3 hours ago",severity: "info" },
+    { id: "1", type: "update",  message: "API endpoint /users optimized",               time: "5 min ago",   severity: "info" },
+    { id: "2", type: "alert",   message: "Database connection pool at 85% capacity",     time: "15 min ago",  severity: "warning" },
+    { id: "3", type: "update",  message: "Cache layer updated to Redis 7.0",             time: "1 hour ago",  severity: "info" },
+    { id: "4", type: "alert",   message: "Payment gateway response time increased",      time: "2 hours ago", severity: "critical" },
+    { id: "5", type: "update",  message: "New microservice deployed: notification-service", time: "3 hours ago", severity: "info" },
   ];
 
   const systemMetrics = [
-    { label: "Active Services",    value: "12",    trend: "+2" },
-    { label: "API Requests/min",   value: "2.4K",  trend: "+12%" },
-    { label: "Avg Response Time",  value: "145ms", trend: "-8%" },
-    { label: "Error Rate",         value: "0.03%", trend: "-15%" },
+    { label: "Active Services",   value: "12",    trend: "+2" },
+    { label: "API Requests/min",  value: "2.4K",  trend: "+12%" },
+    { label: "Avg Response Time", value: "145ms", trend: "-8%" },
+    { label: "Error Rate",        value: "0.03%", trend: "-15%" },
   ];
 
   const views = {
-    context:     { label: "System Context", description: "High-level view",               icon: Layers },
+    context:     { label: "System Context", description: "High-level view",                icon: Layers },
     conceptual:  { label: "Conceptual",     description: "Business-level system overview", icon: LayoutGrid },
-    component:   { label: "Component",      description: "Developer architecture view",   icon: Code },
-    operational: { label: "Operational",    description: "DevOps infrastructure view",    icon: SettingsIcon },
+    component:   { label: "Component",      description: "Developer architecture view",    icon: Code },
+    operational: { label: "Operational",    description: "DevOps infrastructure view",     icon: SettingsIcon },
   };
 
-  const renderArchitectureDiagram = () => {
-    if (diagrams && diagrams.length > 0) {
+  const renderDiagramArea = () => {
+    if (status === "loading") {
       return (
-        <ArchDiagram
-          diagrams={diagrams}
-          viewId={VIEW_ID_MAP[currentView]}
-        />
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+          <div className="text-[13px] text-white/60">Generating architecture diagram…</div>
+          <div className="text-[11px] text-white/30">Analyzing code → Building graph → Generating views</div>
+        </div>
       );
     }
 
-    if (currentView === "component") {
+    if (status === "error") {
       return (
-        <DiagramView
-          onDiagrams={setDiagrams}
-          repositoryName={repository.name}
-          repositoryUrl={repository.url}
-          githubToken={githubToken}
-        />
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <AlertCircle className="w-8 h-8 text-red-400" />
+          <div className="text-[13px] text-red-400">Analysis failed</div>
+          <div className="text-[11px] text-white/40 max-w-md text-center break-all">{error}</div>
+          <button
+            onClick={() => {
+              hasStarted.current = false;
+              setStatus("idle");
+              setError("");
+            }}
+            className="px-4 py-2 border border-white/20 text-[11px] uppercase tracking-[0.15em] hover:bg-white/5 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    if (diagrams && diagrams.length > 0) {
+      return <ArchDiagram diagrams={diagrams} viewId={VIEW_ID_MAP[currentView]} />;
+    }
+
+    if (!isGitHub) {
+      return (
+        <div className="flex items-center justify-center h-64 text-white/40 text-[13px] border border-dashed border-white/10">
+          Diagram generation is only supported for GitHub repositories
+        </div>
       );
     }
 
     return (
       <div className="flex items-center justify-center h-64 text-white/40 text-[13px] border border-dashed border-white/10">
-        Analyze a repository in the Component view to unlock the {views[currentView].label} diagram
+        No diagram data available
       </div>
     );
   };
 
   return (
     <div className="bg-[#0a0a0f] text-white">
-      <div className="max-w-[1800px] mx-auto px-8 py-12">
+      <div className="max-w-450 mx-auto px-8 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main — Architecture View */}
           <div className="lg:col-span-2 space-y-6">
@@ -135,17 +204,8 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
               </div>
 
               <div className="border border-white/10 bg-black/20 p-8">
-                {renderArchitectureDiagram()}
+                {renderDiagramArea()}
               </div>
-
-              {diagrams && (
-                <button
-                  onClick={() => setDiagrams(null)}
-                  className="mt-4 self-start text-[11px] text-white/40 hover:text-white/70 transition-colors uppercase tracking-[0.15em] underline underline-offset-2"
-                >
-                  Analyze different project
-                </button>
-              )}
             </div>
 
             {/* System Metrics */}
@@ -160,7 +220,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
                     <p className="text-[11px] text-white/50 mb-2 uppercase tracking-wider">{metric.label}</p>
                     <div className="flex items-baseline gap-2">
                       <span className="text-[24px]">{metric.value}</span>
-                      <span className={`text-[11px] ${metric.trend.startsWith('+') ? 'text-green-400' : 'text-blue-400'}`}>
+                      <span className={`text-[11px] ${metric.trend.startsWith("+") ? "text-green-400" : "text-blue-400"}`}>
                         {metric.trend}
                       </span>
                     </div>
