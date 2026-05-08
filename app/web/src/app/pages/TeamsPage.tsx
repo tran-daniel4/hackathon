@@ -549,12 +549,14 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
                             )}
                           </div>
                         )}
-                        <button
-                          onClick={() => member.profile_id !== currentUserId && handleRemoveMember(member.profile_id)}
-                          className={`p-1 hover:bg-red-500/10 transition-opacity ${member.profile_id === currentUserId ? "invisible" : "opacity-0 group-hover:opacity-100"}`}
-                        >
-                          <X className="w-3.5 h-3.5 text-white/30 hover:text-red-400 transition-colors" />
-                        </button>
+                        {isCurrentUserAdmin && member.profile_id !== currentUserId && (
+                          <button
+                            onClick={() => handleRemoveMember(member.profile_id)}
+                            className="p-1 hover:bg-red-500/10 transition-opacity opacity-0 group-hover:opacity-100"
+                          >
+                            <X className="w-3.5 h-3.5 text-white/30 hover:text-red-400 transition-colors" />
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   ))}
