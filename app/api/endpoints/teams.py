@@ -27,6 +27,13 @@ async def _require_member(db: AsyncSession, team_id: uuid.UUID, profile_id: uuid
     return member
 
 
+async def _require_admin(db: AsyncSession, team_id: uuid.UUID, profile_id: uuid.UUID) -> TeamMember:
+    member = await _require_member(db, team_id, profile_id)
+    if member.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    return member
+
+
 @router.get("", response_model=list[TeamOut])
 async def list_teams(
     current_user: Profile = Depends(get_current_user),
@@ -131,7 +138,10 @@ async def update_member_role(
     current_user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TeamMemberOut:
-    await _require_member(db, team_id, current_user.id)
+    await _require_admin(db, team_id, current_user.id)
+
+    if profile_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
 
     result = await db.execute(
         select(TeamMember).where(
@@ -143,10 +153,32 @@ async def update_member_role(
     if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
 
+    if body.role == "admin" and member.role != "admin":
+        # demote the current admin before promoting the new one (enforces single-admin constraint)
+        current_admin_result = await db.execute(
+            select(TeamMember).where(
+                TeamMember.team_id == team_id,
+                TeamMember.role == "admin",
+            )
+        )
+        current_admin = current_admin_result.scalar_one_or_none()
+        if current_admin:
+            current_admin.role = "member"
+
     member.role = body.role
     await db.commit()
     await db.refresh(member)
-    return TeamMemberOut.model_validate(member)
+
+    profile_result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    p = profile_result.scalar_one()
+    return TeamMemberOut(
+        team_id=member.team_id,
+        profile_id=member.profile_id,
+        role=member.role,
+        created_at=member.created_at,
+        email=p.email,
+        full_name=p.full_name,
+    )
 
 
 @router.delete("/{team_id}/members/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
