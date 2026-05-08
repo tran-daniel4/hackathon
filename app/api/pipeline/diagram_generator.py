@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from pipeline.scanner import RepoScan
 from pipeline.graph_builder import ArchGraph
 from pipeline.aggregator import BottleneckReport
+from pipeline.system_context import build_system_context_spec
 
 
 # ── Output schema ──────────────────────────────────────────────────────────────
@@ -199,31 +200,76 @@ def _system_context_view(
     C4-style system context: User → Your System → External Systems.
     The whole application is represented as a single node.
     """
-    system_name = (scan.services[0] if scan.services else "System").replace("-", " ").title()
-    all_ids = [n.id for n in graph.nodes]
+    spec = build_system_context_spec(scan, graph)
+    all_ids = spec["system"]["all_ids"]
 
-    nodes: list[DiagramNode] = [
-        DiagramNode(id="ctx-user",   label="User / Browser", type="frontend", layer="presentation"),
-        DiagramNode(
-            id="ctx-system", label=system_name,
-            type="backend", layer="application",
-            severity=_worst_severity(sev_index, all_ids),
-        ),
-    ]
-    edges: list[DiagramEdge] = [
-        DiagramEdge(id="ctx-user--system", source="ctx-user", target="ctx-system", label="HTTPS"),
+    nodes: list[DiagramNode] = []
+    groups = [
+        DiagramGroup(id="actors", label="Users & Actors"),
+        DiagramGroup(id="system", label="Your System"),
+        DiagramGroup(id="partners", label="External Partners"),
+        DiagramGroup(id="identity", label="Identity Providers"),
     ]
 
-    for n in graph.nodes:
-        if n.type == "external_api":
-            nodes.append(DiagramNode(
-                id=f"ctx-{n.id}", label=n.label, type="external", layer="external",
-            ))
-            edges.append(DiagramEdge(
-                id=f"ctx-system--{n.id}", source="ctx-system", target=f"ctx-{n.id}", label="API call",
-            ))
+    for actor in spec["actors"]:
+        nodes.append(DiagramNode(
+            id=actor["id"],
+            label=actor["label"],
+            type="frontend",
+            layer="presentation",
+            group="actors",
+            description=actor["description"],
+        ))
 
-    return DiagramView(id="system_context", label="System Context", nodes=nodes, edges=edges)
+    nodes.append(DiagramNode(
+        id="ctx-system",
+        label=spec["system"]["label"],
+        type="backend",
+        layer="application",
+        group="system",
+        severity=_worst_severity(sev_index, all_ids),
+        description=spec["system"]["description"],
+    ))
+
+    for identity in spec["identity"]:
+        nodes.append(DiagramNode(
+            id=identity["id"],
+            label=identity["label"],
+            type="external",
+            layer="external",
+            group="identity",
+            description=identity["description"],
+        ))
+
+    for partner in spec["partners"]:
+        nodes.append(DiagramNode(
+            id=partner["id"],
+            label=partner["label"],
+            type="external",
+            layer="external",
+            group="partners",
+            description=partner["description"],
+        ))
+
+    edges = [
+        DiagramEdge(
+            id=f"{edge['source']}--{edge['target']}--{idx}",
+            source=edge["source"],
+            target=edge["target"],
+            label=edge["label"],
+            confidence=edge["confidence"],
+        )
+        for idx, edge in enumerate(spec["edges"], start=1)
+    ]
+
+    used_groups = {node.group for node in nodes if node.group}
+    return DiagramView(
+        id="system_context",
+        label="System Context",
+        groups=[group for group in groups if group.id in used_groups],
+        nodes=nodes,
+        edges=edges,
+    )
 
 
 def _component_view(graph: ArchGraph, sev_index: dict[str, str]) -> DiagramView:

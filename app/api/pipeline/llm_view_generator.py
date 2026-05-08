@@ -19,6 +19,7 @@ from pipeline.diagram_generator import (
     generate_diagrams,
 )
 from pipeline.llm_wrapper import LLMConfig, _call_ollama, _call_openai_compat
+from pipeline.system_context import build_system_context_spec
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,7 @@ def _build_canonical_context(scan: RepoScan, graph: ArchGraph) -> dict:
         "webhooks":       [w.path for w in scan.webhook_routes[:6]],
         "infra_files":    list(scan.infra_content.keys())[:6],
     }
+    system_context_hints = build_system_context_spec(scan, graph)
 
     return {
         "services":    services[:15],
@@ -177,6 +179,25 @@ def _build_canonical_context(scan: RepoScan, graph: ArchGraph) -> dict:
         "connections": connections[:25],
         "api_surface": api_surface,
         "signals":     signals,
+        "system_context_hints": {
+            "system": {
+                "label": system_context_hints["system"]["label"],
+                "description": system_context_hints["system"]["description"],
+            },
+            "actors": [
+                {"label": actor["label"], "description": actor["description"]}
+                for actor in system_context_hints["actors"]
+            ],
+            "identity": [
+                {"label": node["label"], "description": node["description"]}
+                for node in system_context_hints["identity"]
+            ],
+            "partners": [
+                {"label": node["label"], "description": node["description"]}
+                for node in system_context_hints["partners"]
+            ],
+            "edges": system_context_hints["edges"],
+        },
         "naming_hint":    _naming_hint(scan.services),
         "gaps":           _detect_gaps(scan, graph),
         "readme_summary": scan.readme_summary,
@@ -297,7 +318,7 @@ def _build_prompt(view_id: str, ctx: dict) -> str:
     if view_id == "conceptual":
         return _prompt_conceptual(ctx)
     if view_id == "system_context":
-        return _prompt_system_context(ctx)
+        return _prompt_system_context_v2(ctx)
     if view_id == "component":
         return _prompt_component(ctx)
     if view_id == "operational":
@@ -371,6 +392,42 @@ def _prompt_system_context(ctx: dict) -> str:
         "partners: what integration it provides\n"
         "- Connections to partners with evidence: confidence=verified. Others: confidence=inferred.\n"
         "- Webhook inbound: arrow from the webhook provider to your-system\n\n"
+        '{"nodes":[{"id":"..","label":"..","type":"frontend|backend|external",'
+        '"group":"actors|system|partners|identity","description":".."}],'
+        '"edges":[{"source":"..","target":"..","label":"..","confidence":"verified|inferred"}],'
+        '"groups":[{"id":"actors","label":"Users & Actors"},'
+        '{"id":"system","label":"Your System"},'
+        '{"id":"partners","label":"External Partners"},'
+        '{"id":"identity","label":"Identity Providers"}]}'
+    )
+
+
+def _prompt_system_context_v2(ctx: dict) -> str:
+    facts_dict: dict = {
+        "env_providers": ctx["signals"]["env_providers"],
+        "auth_patterns": ctx["signals"]["auth_patterns"],
+        "webhooks": ctx["signals"]["webhooks"],
+        "externals": [{"name": e["name"], "evidence": e["evidence"]} for e in ctx["externals"]],
+        "services": [s["name"] for s in ctx["services"]],
+        "system_context_hints": ctx["system_context_hints"],
+        "gaps": ctx["gaps"][:4],
+    }
+    if ctx.get("readme_summary"):
+        facts_dict["readme_summary"] = ctx["readme_summary"]
+    facts = json.dumps(facts_dict, separators=(",", ":"))
+
+    return (
+        _CONSTRAINT_PREFIX
+        + f"FACTS:\n{facts}\n\n"
+        "Task: C4 System Context diagram.\n"
+        "- Start from system_context_hints. Preserve the same actor, system, partner, and identity intent unless FACTS clearly contradict it.\n"
+        "- group=actors: at most 3 actor nodes, preferring the labels from system_context_hints.actors\n"
+        "- group=system: EXACTLY ONE node representing our system boundary, using system_context_hints.system.label unless there is a stronger FACT-backed name\n"
+        "- group=partners: external systems the application calls or receives webhooks from\n"
+        "- group=identity: real authentication and identity providers only\n"
+        "- description: one sentence explaining who the actor is, what the system does, or what the partner or identity system provides\n"
+        "- Connections to partners with evidence: confidence=verified. Others: confidence=inferred.\n"
+        "- Webhook inbound: arrow from the webhook provider to the system node\n\n"
         '{"nodes":[{"id":"..","label":"..","type":"frontend|backend|external",'
         '"group":"actors|system|partners|identity","description":".."}],'
         '"edges":[{"source":"..","target":"..","label":"..","confidence":"verified|inferred"}],'
@@ -528,6 +585,9 @@ def _parse_view_response(
             seen_gids.add(gid)
             groups.append(DiagramGroup(id=gid, label=str(g.get("label", gid))))
 
+        if view_id == "system_context" and not _is_valid_system_context(nodes):
+            raise ValueError("System context response missing required system/actor structure")
+
         return DiagramView(
             id=view_id,
             label=fallback.label,
@@ -577,3 +637,10 @@ def _extract_json_object(text: str) -> dict:
                 return json.loads(text[start : i + 1])
 
     raise ValueError("Unbalanced braces in LLM response")
+
+
+def _is_valid_system_context(nodes: list[DiagramNode]) -> bool:
+    system_nodes = [node for node in nodes if node.group == "system" or node.id in {"your-system", "ctx-system"}]
+    actor_nodes = [node for node in nodes if node.group == "actors"]
+    partner_nodes = [node for node in nodes if node.group in {"partners", "identity"}]
+    return len(system_nodes) == 1 and bool(actor_nodes or partner_nodes)
