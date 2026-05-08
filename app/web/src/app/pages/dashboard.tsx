@@ -33,7 +33,7 @@ type ViewPerspective = "system-context" | "conceptual" | "component" | "operatio
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function Dashboard() {
-  const { supabase, user, session } = useAuth();
+  const { supabase, user, session, loading: authLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.user_metadata?.user_name ?? user?.email ?? "User";
@@ -46,7 +46,7 @@ export function Dashboard() {
 
   const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [reposLoading, setReposLoading] = useState(true);
+  const [reposLoading, setReposLoading] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -55,7 +55,7 @@ export function Dashboard() {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => {
-        if (!r.ok) throw new Error("Failed to load repositories");
+        if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
       .then((data: Array<{ id: string; name: string; url: string; lastUpdated: string; componentsCount: number }>) => {
@@ -69,7 +69,13 @@ export function Dashboard() {
           }))
         );
       })
-      .catch(() => toast.error("Failed to load repositories"))
+      .catch((err: Error) => {
+        if (err.message === "401") {
+          toast.error("Session expired — please sign in again");
+        } else {
+          toast.error("Failed to load repositories");
+        }
+      })
       .finally(() => setReposLoading(false));
   }, [accessToken]);
 
@@ -383,13 +389,14 @@ export function Dashboard() {
 
             {/* Repository List */}
             <div className="space-y-4">
-              {reposLoading ? (
+              {(authLoading || reposLoading) ? (
                 <div className="border border-white/10 bg-[#0f0f15]/60 p-12 text-center">
                   <p className="text-white/50">Loading repositories…</p>
                 </div>
               ) : filteredRepositories.length === 0 ? (
                 <div className="border border-white/10 bg-[#0f0f15]/60 p-12 text-center">
-                  <p className="text-white/50">No repositories found</p>
+                  <p className="text-white/50 mb-2">No repositories yet</p>
+                  <p className="text-white/30 text-[12px]">Click &ldquo;Add Repository&rdquo; to get started</p>
                 </div>
               ) : (
                 filteredRepositories.map((repo) => (

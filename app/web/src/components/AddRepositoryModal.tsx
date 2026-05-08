@@ -45,7 +45,7 @@ async function saveRepo(
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ name, url }),
   });
-  if (!res.ok) throw new Error("Failed to save repository");
+  if (!res.ok) throw new Error(`${res.status}`);
   const data = await res.json();
   return {
     id: String(data.id),
@@ -114,8 +114,15 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
         onAdd(saved);
       }
       onClose();
-    } catch {
-      toast.error("Failed to save repositories");
+    } catch (err) {
+      const status = err instanceof Error ? err.message : "";
+      if (status === "401") {
+        toast.error("Session expired — please sign in again");
+      } else if (status === "500") {
+        toast.error("Server error — check that migrations have run on the droplet");
+      } else {
+        toast.error("Failed to save repositories");
+      }
     }
   };
 
