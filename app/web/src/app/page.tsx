@@ -98,7 +98,7 @@ export default function Home() {
 
             <p className="text-[clamp(1.1rem,2vw,1.5rem)] opacity-60 max-w-[600px] mb-16 leading-relaxed">
               Turn scattered architecture knowledge into a living visual map.
-              Diagnose production issues in minutes, not hours.
+              Surface static architecture risks and system flow in minutes, not hours.
             </p>
             <button
               onClick={() => setShowLogin(true)}
@@ -149,7 +149,7 @@ export default function Home() {
               {
                 num: "03",
                 title: "Visual Diagnosis",
-                desc: "Bottlenecks and failures overlaid directly on the map. See database slowdowns, overloaded services, and queue congestion instantly."
+                desc: "Static bottleneck risk overlays appear directly on the map. Spot possible database hotspots, fragile service paths, and queue reliability gaps before they bite you."
               },
             ].map((item, idx) => (
               <motion.div
