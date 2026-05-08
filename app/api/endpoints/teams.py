@@ -48,7 +48,7 @@ async def create_team(
     current_user: Profile = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TeamOut:
-    team = Team(name=body.name)
+    team = Team(id=uuid.uuid4(), name=body.name)
     db.add(team)
 
     member = TeamMember(team_id=team.id, profile_id=current_user.id, role="admin")
