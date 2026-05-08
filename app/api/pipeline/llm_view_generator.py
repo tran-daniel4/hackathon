@@ -20,6 +20,7 @@ from pipeline.diagram_generator import (
 )
 from pipeline.llm_wrapper import LLMConfig, _call_ollama, _call_openai_compat
 from pipeline.conceptual import build_conceptual_spec
+from pipeline.operational import build_operational_spec
 from pipeline.system_context import build_system_context_spec
 
 logger = logging.getLogger(__name__)
@@ -173,6 +174,7 @@ def _build_canonical_context(scan: RepoScan, graph: ArchGraph) -> dict:
     }
     system_context_hints = build_system_context_spec(scan, graph)
     conceptual_hints = build_conceptual_spec(scan, graph)
+    operational_hints = build_operational_spec(scan, graph)
 
     return {
         "services":    services[:15],
@@ -225,6 +227,37 @@ def _build_canonical_context(scan: RepoScan, graph: ArchGraph) -> dict:
                 for gap in conceptual_hints["gaps"]
             ],
             "edges": conceptual_hints["edges"],
+        },
+        "operational_hints": {
+            "runtime": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["runtime"]
+            ],
+            "ingress": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["ingress"]
+            ],
+            "cicd": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["cicd"]
+            ],
+            "services": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["services"]
+            ],
+            "data": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["data"]
+            ],
+            "observability": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["observability"]
+            ],
+            "identity": [
+                {"label": node["label"], "description": node["description"]}
+                for node in operational_hints["identity"]
+            ],
+            "edges": operational_hints["edges"],
         },
         "naming_hint":    _naming_hint(scan.services),
         "gaps":           _detect_gaps(scan, graph),
@@ -350,7 +383,7 @@ def _build_prompt(view_id: str, ctx: dict) -> str:
     if view_id == "component":
         return _prompt_component(ctx)
     if view_id == "operational":
-        return _prompt_operational(ctx)
+        return _prompt_operational_v2(ctx)
     raise ValueError(f"Unknown view_id: {view_id}")
 
 
@@ -572,6 +605,42 @@ def _prompt_operational(ctx: dict) -> str:
     )
 
 
+def _prompt_operational_v2(ctx: dict) -> str:
+    facts = json.dumps({
+        "services": [s["id"] for s in ctx["services"]],
+        "cicd": ctx["signals"]["cicd"],
+        "infra_files": ctx["signals"]["infra_files"],
+        "observability": ctx["signals"]["observability"],
+        "auth_patterns": ctx["signals"]["auth_patterns"],
+        "operational_hints": ctx["operational_hints"],
+    }, separators=(",", ":"))
+
+    return (
+        _CONSTRAINT_PREFIX
+        + f"FACTS:\n{facts}\n\n"
+        "Task: Deployment / DevOps view.\n"
+        "- Start from operational_hints. Preserve the same runtime, ingress, services, data, observability, identity, and CI/CD intent unless FACTS clearly contradict it.\n"
+        "- group=cicd: build, test, and deploy stages when CI/CD signals exist\n"
+        "- group=runtime: hosting environment, provisioning layer, or orchestrator\n"
+        "- group=ingress: public edge, gateway, or load balancer if inbound traffic exists\n"
+        "- group=services: deployed application workloads\n"
+        "- group=data: persistent stores, caches, and queues\n"
+        "- group=observability: metrics, tracing, or logging systems\n"
+        "- group=identity: hosted identity services or auth control plane\n"
+        "- description: one sentence explaining the operational role of each node\n"
+        "- Keep the flow coherent: cicd -> runtime -> ingress/services -> data and observability\n\n"
+        '{"nodes":[{"id":"..","label":"..","type":"worker|backend|frontend|database|cache|queue|external","group":"cicd|runtime|ingress|services|data|observability|identity","description":".."}],'
+        '"edges":[{"source":"..","target":"..","label":"..","confidence":"verified|inferred"}],'
+        '"groups":[{"id":"cicd","label":"CI/CD Pipeline"},'
+        '{"id":"runtime","label":"Runtime"},'
+        '{"id":"ingress","label":"Ingress"},'
+        '{"id":"services","label":"Services"},'
+        '{"id":"data","label":"Data Plane"},'
+        '{"id":"observability","label":"Observability"},'
+        '{"id":"identity","label":"Identity"}]}'
+    )
+
+
 # ── Response parser ─────────────────────────────────────────────────────────────
 
 def _parse_view_response(
@@ -652,6 +721,8 @@ def _parse_view_response(
             raise ValueError("System context response missing required system/actor structure")
         if view_id == "conceptual" and not _is_valid_conceptual(nodes):
             raise ValueError("Conceptual response missing required system/capability structure")
+        if view_id == "operational" and not _is_valid_operational(nodes):
+            raise ValueError("Operational response missing required runtime/service structure")
 
         return DiagramView(
             id=view_id,
@@ -716,3 +787,10 @@ def _is_valid_conceptual(nodes: list[DiagramNode]) -> bool:
     capability_nodes = [node for node in nodes if node.group == "capabilities"]
     actor_nodes = [node for node in nodes if node.group == "users"]
     return len(system_nodes) == 1 and bool(capability_nodes) and bool(actor_nodes)
+
+
+def _is_valid_operational(nodes: list[DiagramNode]) -> bool:
+    runtime_nodes = [node for node in nodes if node.group == "runtime"]
+    service_nodes = [node for node in nodes if node.group == "services"]
+    support_nodes = [node for node in nodes if node.group in {"data", "observability", "cicd", "identity"}]
+    return bool(runtime_nodes) and bool(service_nodes) and bool(support_nodes)

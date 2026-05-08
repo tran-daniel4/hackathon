@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Activity,
@@ -64,32 +64,40 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
 
   const isGitHub = isGitHubUrl(repository.url);
 
+  const runAnalysis = useCallback(async () => {
+    setStatus("loading");
+    setError("");
+    setDiagrams(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repo_url: repository.url,
+          github_token: githubToken ?? undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json()) as { detail?: string };
+        throw new Error(body.detail ?? res.statusText);
+      }
+
+      const data = (await res.json()) as { diagrams?: RawDiagram[] };
+      if (data.diagrams?.length) setDiagrams(data.diagrams);
+      setStatus("done");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+      setStatus("error");
+    }
+  }, [githubToken, repository.url]);
+
   useEffect(() => {
     if (!isGitHub || hasStarted.current) return;
     hasStarted.current = true;
-    setStatus("loading");
-
-    fetch(`${API_BASE}/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        repo_url: repository.url,
-        github_token: githubToken ?? undefined,
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) return res.json().then((b) => { throw new Error(b.detail ?? res.statusText); });
-        return res.json();
-      })
-      .then((data: { diagrams?: RawDiagram[] }) => {
-        if (data.diagrams?.length) setDiagrams(data.diagrams);
-        setStatus("done");
-      })
-      .catch((err: Error) => {
-        setError(err.message);
-        setStatus("error");
-      });
-  }, [isGitHub, githubToken, repository.url]);
+    void runAnalysis();
+  }, [isGitHub, runAnalysis]);
 
   const recentActivity = [
     { id: "1", type: "update",  message: "API endpoint /users optimized",               time: "5 min ago",   severity: "info" },
@@ -132,9 +140,8 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
           <div className="text-[11px] text-white/40 max-w-md text-center break-all">{error}</div>
           <button
             onClick={() => {
-              hasStarted.current = false;
-              setStatus("idle");
-              setError("");
+              hasStarted.current = true;
+              void runAnalysis();
             }}
             className="px-4 py-2 border border-white/20 text-[11px] uppercase tracking-[0.15em] hover:bg-white/5 transition-colors"
           >

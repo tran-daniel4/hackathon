@@ -18,6 +18,7 @@ from pipeline.scanner import RepoScan
 from pipeline.graph_builder import ArchGraph
 from pipeline.aggregator import BottleneckReport
 from pipeline.conceptual import build_conceptual_spec
+from pipeline.operational import build_operational_spec
 from pipeline.system_context import build_system_context_spec
 
 
@@ -345,22 +346,49 @@ def _operational_view(
     if not has_docker and not has_terraform and not has_k8s and not has_aspire:
         return None
 
-    nodes = _graph_nodes_to_diagram(graph, sev_index, label_prefix="[container] " if has_docker else "")
-    edges = _graph_edges_to_diagram(graph)
+    spec = build_operational_spec(scan, graph)
+    nodes: list[DiagramNode] = []
+    groups = [
+        DiagramGroup(id="cicd", label="CI/CD Pipeline"),
+        DiagramGroup(id="runtime", label="Runtime"),
+        DiagramGroup(id="ingress", label="Ingress"),
+        DiagramGroup(id="services", label="Services"),
+        DiagramGroup(id="data", label="Data Plane"),
+        DiagramGroup(id="observability", label="Observability"),
+        DiagramGroup(id="identity", label="Identity"),
+    ]
 
-    # Prepend an infra context node
-    infra_label = (
-        "Kubernetes" if has_k8s
-        else "Terraform (Cloud)" if has_terraform
-        else ".NET Aspire AppHost" if has_aspire
-        else "Docker Compose"
-    )
-    nodes.insert(0, DiagramNode(
-        id="infra-runtime", label=infra_label, type="worker", layer="infra", group="runtime",
-    ))
+    for node in [
+        *spec["cicd"],
+        *spec["runtime"],
+        *spec["ingress"],
+        *spec["services"],
+        *spec["data"],
+        *spec["observability"],
+        *spec["identity"],
+    ]:
+        nodes.append(DiagramNode(
+            id=node["id"],
+            label=node["label"],
+            type=node["type"],
+            layer=_TYPE_LAYER.get(node["type"], "application"),
+            group=node["group"],
+            severity=sev_index.get(node["id"]),
+            description=node["description"],
+        ))
+
+    edges = [
+        DiagramEdge(
+            id=f"{edge['source']}--{edge['target']}--{idx}",
+            source=edge["source"],
+            target=edge["target"],
+            label=edge["label"],
+            confidence=edge["confidence"],
+        )
+        for idx, edge in enumerate(spec["edges"], start=1)
+    ]
 
     used_groups = {n.group for n in nodes if n.group}
-    groups = [DiagramGroup(id="runtime", label="Runtime"), *_STANDARD_GROUPS]
 
     return DiagramView(
         id="operational",
