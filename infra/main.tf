@@ -34,6 +34,41 @@ data "digitalocean_project" "dynodocs" {
   name = var.do_project_name
 }
 
+resource "digitalocean_firewall" "dynodocs" {
+  name        = "dynodocs-dev"
+  droplet_ids = [digitalocean_droplet.dynodocs.id]
+
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "22"
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "3000"
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  inbound_rule {
+    protocol         = "tcp"
+    port_range       = "8000"
+    source_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "tcp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+
+  outbound_rule {
+    protocol              = "udp"
+    port_range            = "1-65535"
+    destination_addresses = ["0.0.0.0/0", "::/0"]
+  }
+}
+
 resource "digitalocean_project_resources" "dynodocs" {
   project   = data.digitalocean_project.dynodocs.id
   resources = [digitalocean_droplet.dynodocs.urn]
