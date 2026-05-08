@@ -7,13 +7,12 @@ from pydantic import BaseModel, Field
 
 from analyzers.file_index import FileIndex
 from analyzers.orchestrator import AnalyzerOrchestrator
+from bottlenecks.orchestrator import build_component_annotations, run_bottleneck_analysis
 from core.config import settings
 from core.repo_loader import clone_github_repo, load_repo_files
 from graph.compat import graph_facts_to_arch_graph
-from pipeline.aggregator import aggregate
 from pipeline.llm_view_generator import generate_diagrams_hybrid
-from pipeline.llm_wrapper import LLMConfig, enrich_issues
-from pipeline.rules_engine import run_rules
+from pipeline.llm_wrapper import LLMConfig
 from pipeline.scanner import RepoScan, scan_files, scan_repo
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
@@ -46,11 +45,13 @@ async def analyze(body: AnalyzeRequest):
         facts = AnalyzerOrchestrator().run(file_index, repo_meta=source["repo_meta"])
         graph = graph_facts_to_arch_graph(facts)
 
-        issues = run_rules(source["scan"], graph)
         cfg = LLMConfig(base_url=settings.ollama_base_url)
-        enriched = enrich_issues(issues, graph, config=cfg)
-        report = aggregate(enriched)
-        output = await generate_diagrams_hybrid(source["scan"], graph, report, config=cfg)
+        bottleneck_result, legacy_report = run_bottleneck_analysis(
+            file_index=file_index,
+            graph_facts=facts,
+            config=cfg,
+        )
+        output = await generate_diagrams_hybrid(source["scan"], graph, legacy_report, config=cfg)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -58,11 +59,19 @@ async def analyze(body: AnalyzeRequest):
         )
 
     component = next((view for view in output.views if view.id == "component"), output.views[0])
+    component.annotations = build_component_annotations(bottleneck_result.report)
+    severity_by_node = {
+        item.node_id: ("high" if item.severity == "critical" else item.severity)
+        for item in bottleneck_result.report.hot_nodes
+    }
+    for node in component.nodes:
+        if node.id in severity_by_node:
+            node.severity = severity_by_node[node.id]
 
     return AnalyzeResponse(
         repo_analysis=source["scan"].model_dump(),
         system_design=graph.model_dump(),
-        bottlenecks=report.model_dump(),
+        bottlenecks=bottleneck_result.report.model_dump(),
         diagram={
             "nodes": [node.model_dump() for node in component.nodes],
             "edges": [edge.model_dump() for edge in component.edges],
@@ -81,6 +90,27 @@ async def analyze(body: AnalyzeRequest):
                 "node_count": len(facts.nodes),
                 "edge_count": len(facts.edges),
                 "warning_count": len(facts.warnings),
+                "bottleneck_count": len(bottleneck_result.report.findings),
+                "hot_node_count": len(bottleneck_result.report.hot_nodes),
+            },
+            "repo_signals": {
+                "counts": {
+                    "routes": len(bottleneck_result.repo_signals.routes),
+                    "http_calls": len(bottleneck_result.repo_signals.http_calls),
+                    "db_calls": len(bottleneck_result.repo_signals.db_calls),
+                    "loops": len(bottleneck_result.repo_signals.loops),
+                    "cache_calls": len(bottleneck_result.repo_signals.cache_calls),
+                    "queue_configs": len(bottleneck_result.repo_signals.queue_configs),
+                    "file_io_calls": len(bottleneck_result.repo_signals.file_io_calls),
+                    "logging_calls": len(bottleneck_result.repo_signals.logging_calls),
+                    "cpu_calls": len(bottleneck_result.repo_signals.cpu_calls),
+                },
+                "sample_evidence_ids": [
+                    *[route.evidence_id for route in bottleneck_result.repo_signals.routes[:2]],
+                    *[call.evidence_id for call in bottleneck_result.repo_signals.http_calls[:2]],
+                    *[call.evidence_id for call in bottleneck_result.repo_signals.db_calls[:2]],
+                ],
+                "raw": bottleneck_result.repo_signals.model_dump(),
             },
         },
     )

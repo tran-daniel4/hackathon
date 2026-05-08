@@ -114,7 +114,19 @@ interface DiagramEdge {
 interface AnalyzeResult {
   diagram: { nodes: DiagramNode[]; edges: DiagramEdge[]; annotations: unknown[] };
   diagrams?: RawDiagram[];
-  bottlenecks: { issues?: Array<{ title?: string; severity?: string; summary?: string }> };
+  bottlenecks: {
+    summary?: {
+      overall_risk?: string;
+      total_findings?: number;
+      highest_risk_type?: string | null;
+      highest_severity?: string | null;
+      static_confidence?: number;
+    };
+    hot_nodes?: Array<{ node_id: string; severity: string; score: number }>;
+    hot_edges?: Array<{ edge_id: string; severity: string; score: number }>;
+    findings?: Array<{ id: string; title: string; severity: string; confidence: number; why: string }>;
+    issues?: Array<{ title?: string; severity?: string; summary?: string }>;
+  };
   system_design: unknown;
   repo_analysis: {
     services: string[];
@@ -142,6 +154,22 @@ interface AnalyzeResult {
       node_count: number;
       edge_count: number;
       warning_count: number;
+      bottleneck_count: number;
+      hot_node_count: number;
+    };
+    repo_signals?: {
+      counts: {
+        routes: number;
+        http_calls: number;
+        db_calls: number;
+        loops: number;
+        cache_calls: number;
+        queue_configs: number;
+        file_io_calls: number;
+        logging_calls: number;
+        cpu_calls: number;
+      };
+      sample_evidence_ids: string[];
     };
   };
 }
@@ -554,6 +582,8 @@ export function DiagramView({
               <Stat label="APIs" value={result.analysis_debug.summary.api_count} />
               <Stat label="Nodes" value={result.analysis_debug.summary.node_count} />
               <Stat label="Edges" value={result.analysis_debug.summary.edge_count} />
+              <Stat label="Bottlenecks" value={result.analysis_debug.summary.bottleneck_count} />
+              <Stat label="Hot Nodes" value={result.analysis_debug.summary.hot_node_count} />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -611,6 +641,52 @@ export function DiagramView({
                         <div key={`${warning.code}-${warning.message}`}>{warning.code}: {warning.message}</div>
                       ))}
                       {result.graph_facts.warnings.length === 0 && <div>None</div>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="border border-white/10 bg-black/20 p-4">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-white/40 mb-3">Repo signals</div>
+                <div className="space-y-3 text-[12px] text-white/75">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Stat label="Routes" value={result.analysis_debug.repo_signals?.counts.routes ?? 0} />
+                    <Stat label="HTTP Calls" value={result.analysis_debug.repo_signals?.counts.http_calls ?? 0} />
+                    <Stat label="DB Calls" value={result.analysis_debug.repo_signals?.counts.db_calls ?? 0} />
+                    <Stat label="Loops" value={result.analysis_debug.repo_signals?.counts.loops ?? 0} />
+                    <Stat label="Cache Calls" value={result.analysis_debug.repo_signals?.counts.cache_calls ?? 0} />
+                    <Stat label="Queue Configs" value={result.analysis_debug.repo_signals?.counts.queue_configs ?? 0} />
+                    <Stat label="File I/O" value={result.analysis_debug.repo_signals?.counts.file_io_calls ?? 0} />
+                    <Stat label="Logging" value={result.analysis_debug.repo_signals?.counts.logging_calls ?? 0} />
+                    <Stat label="CPU Calls" value={result.analysis_debug.repo_signals?.counts.cpu_calls ?? 0} />
+                  </div>
+                  <div>
+                    <div className="text-white/35 mb-1">Sample evidence IDs</div>
+                    <div>{result.analysis_debug.repo_signals?.sample_evidence_ids.join(", ") || "None"}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-white/10 bg-black/20 p-4">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-white/40 mb-3">Bottleneck summary</div>
+                <div className="space-y-3 text-[12px] text-white/75">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Stat label="Overall Risk" value={result.bottlenecks.summary?.overall_risk ?? "unknown"} />
+                    <Stat label="Highest Severity" value={result.bottlenecks.summary?.highest_severity ?? "none"} />
+                    <Stat label="Highest Risk Type" value={result.bottlenecks.summary?.highest_risk_type ?? "none"} />
+                    <Stat label="Static Confidence" value={result.bottlenecks.summary?.static_confidence ?? 0} />
+                  </div>
+                  <div>
+                    <div className="text-white/35 mb-1">Top findings</div>
+                    <div className="space-y-1">
+                      {result.bottlenecks.findings?.slice(0, 5).map((finding) => (
+                        <div key={finding.id}>
+                          {finding.title} ({finding.severity}, {finding.confidence})
+                        </div>
+                      ))}
+                      {!result.bottlenecks.findings?.length && <div>None</div>}
                     </div>
                   </div>
                 </div>
