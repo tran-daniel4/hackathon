@@ -19,6 +19,7 @@ from pipeline.diagram_generator import (
     generate_diagrams,
 )
 from pipeline.llm_wrapper import LLMConfig, _call_ollama, _call_openai_compat
+from pipeline.conceptual import build_conceptual_spec
 from pipeline.system_context import build_system_context_spec
 
 logger = logging.getLogger(__name__)
@@ -171,6 +172,7 @@ def _build_canonical_context(scan: RepoScan, graph: ArchGraph) -> dict:
         "infra_files":    list(scan.infra_content.keys())[:6],
     }
     system_context_hints = build_system_context_spec(scan, graph)
+    conceptual_hints = build_conceptual_spec(scan, graph)
 
     return {
         "services":    services[:15],
@@ -197,6 +199,32 @@ def _build_canonical_context(scan: RepoScan, graph: ArchGraph) -> dict:
                 for node in system_context_hints["partners"]
             ],
             "edges": system_context_hints["edges"],
+        },
+        "conceptual_hints": {
+            "system": {
+                "label": conceptual_hints["system"]["label"],
+                "description": conceptual_hints["system"]["description"],
+            },
+            "actors": [
+                {"label": actor["label"], "description": actor["description"]}
+                for actor in conceptual_hints["actors"]
+            ],
+            "capabilities": [
+                {
+                    "label": capability["label"],
+                    "description": capability["description"],
+                }
+                for capability in conceptual_hints["capabilities"]
+            ],
+            "external_partners": [
+                {"label": node["label"], "description": node["description"]}
+                for node in conceptual_hints["external_partners"]
+            ],
+            "gaps": [
+                {"label": gap["label"], "description": gap["description"]}
+                for gap in conceptual_hints["gaps"]
+            ],
+            "edges": conceptual_hints["edges"],
         },
         "naming_hint":    _naming_hint(scan.services),
         "gaps":           _detect_gaps(scan, graph),
@@ -316,7 +344,7 @@ def _detect_gaps(scan: RepoScan, graph: ArchGraph) -> list[str]:
 
 def _build_prompt(view_id: str, ctx: dict) -> str:
     if view_id == "conceptual":
-        return _prompt_conceptual(ctx)
+        return _prompt_conceptual_v2(ctx)
     if view_id == "system_context":
         return _prompt_system_context_v2(ctx)
     if view_id == "component":
@@ -356,6 +384,41 @@ def _prompt_conceptual(ctx: dict) -> str:
         '"group":"users|capabilities|external_partners|gaps","description":".."}],'
         '"edges":[{"source":"..","target":"..","label":"..","confidence":"verified|inferred"}],'
         '"groups":[{"id":"users","label":"Users & Actors"},'
+        '{"id":"capabilities","label":"Business Capabilities"},'
+        '{"id":"external_partners","label":"External Partners"},'
+        '{"id":"gaps","label":"Detected Gaps"}]}'
+    )
+
+
+def _prompt_conceptual_v2(ctx: dict) -> str:
+    facts_dict: dict = {
+        "api_routes": ctx["api_surface"][:12],
+        "env_providers": ctx["signals"]["env_providers"],
+        "auth_patterns": ctx["signals"]["auth_patterns"],
+        "external_sdks": [e["name"] for e in ctx["externals"]],
+        "conceptual_hints": ctx["conceptual_hints"],
+        "gaps": ctx["gaps"],
+    }
+    if ctx.get("readme_summary"):
+        facts_dict["readme_summary"] = ctx["readme_summary"]
+    facts = json.dumps(facts_dict, separators=(",", ":"))
+
+    return (
+        _CONSTRAINT_PREFIX
+        + f"FACTS:\n{facts}\n\n"
+        "Task: Business capability map.\n"
+        "- Start from conceptual_hints. Preserve the same actor, system, capability, partner, and gap intent unless FACTS clearly contradict it.\n"
+        "- group=users: actor nodes representing the people or external clients using the system\n"
+        "- group=system: EXACTLY ONE node for the system boundary and value proposition\n"
+        "- group=capabilities: named business capability nodes like catalog, orders, payments, collaboration, analytics, or repository analysis\n"
+        "- group=external_partners: supporting partner platforms or providers\n"
+        "- group=gaps: unresolved architecture ambiguities that matter to understanding the business view\n"
+        "- description: one sentence explaining the role of each actor, capability, partner, gap, or system node\n"
+        "- Max 14 nodes total. Up to 3 inferred edges, label 'suggested: <reason>'\n\n"
+        '{"nodes":[{"id":"..","label":"..","type":"frontend|backend|external","group":"users|system|capabilities|external_partners|gaps","description":".."}],'
+        '"edges":[{"source":"..","target":"..","label":"..","confidence":"verified|inferred"}],'
+        '"groups":[{"id":"users","label":"Users & Actors"},'
+        '{"id":"system","label":"System Boundary"},'
         '{"id":"capabilities","label":"Business Capabilities"},'
         '{"id":"external_partners","label":"External Partners"},'
         '{"id":"gaps","label":"Detected Gaps"}]}'
@@ -587,6 +650,8 @@ def _parse_view_response(
 
         if view_id == "system_context" and not _is_valid_system_context(nodes):
             raise ValueError("System context response missing required system/actor structure")
+        if view_id == "conceptual" and not _is_valid_conceptual(nodes):
+            raise ValueError("Conceptual response missing required system/capability structure")
 
         return DiagramView(
             id=view_id,
@@ -644,3 +709,10 @@ def _is_valid_system_context(nodes: list[DiagramNode]) -> bool:
     actor_nodes = [node for node in nodes if node.group == "actors"]
     partner_nodes = [node for node in nodes if node.group in {"partners", "identity"}]
     return len(system_nodes) == 1 and bool(actor_nodes or partner_nodes)
+
+
+def _is_valid_conceptual(nodes: list[DiagramNode]) -> bool:
+    system_nodes = [node for node in nodes if node.group == "system" or node.id == "concept-system"]
+    capability_nodes = [node for node in nodes if node.group == "capabilities"]
+    actor_nodes = [node for node in nodes if node.group == "users"]
+    return len(system_nodes) == 1 and bool(capability_nodes) and bool(actor_nodes)

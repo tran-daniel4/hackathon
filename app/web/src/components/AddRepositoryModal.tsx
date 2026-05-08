@@ -57,9 +57,7 @@ async function saveRepo(
 }
 
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
-  const { session } = useAuth();
-  const githubToken =
-    (session as { provider_token?: string | null } | null)?.provider_token ?? null;
+  const { session, githubToken } = useAuth();
   const hasGithub = !!githubToken;
 
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);

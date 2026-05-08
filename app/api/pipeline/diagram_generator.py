@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from pipeline.scanner import RepoScan
 from pipeline.graph_builder import ArchGraph
 from pipeline.aggregator import BottleneckReport
+from pipeline.conceptual import build_conceptual_spec
 from pipeline.system_context import build_system_context_spec
 
 
@@ -123,7 +124,7 @@ def generate_diagrams(
     sev_index = _build_severity_index(report)
 
     views: list[DiagramView] = [
-        _conceptual_view(graph, sev_index),
+        _conceptual_view(graph, scan, sev_index),
         _system_context_view(graph, scan, sev_index),
         _component_view(graph, sev_index),
     ]
@@ -137,58 +138,94 @@ def generate_diagrams(
 
 # ── View builders ──────────────────────────────────────────────────────────────
 
-def _conceptual_view(graph: ArchGraph, sev_index: dict[str, str]) -> DiagramView:
+def _conceptual_view(
+    graph: ArchGraph,
+    scan: RepoScan,
+    sev_index: dict[str, str],
+) -> DiagramView:
     """
-    High-level business view — one node per architectural concern.
-    Shows: Presentation / Application / Data Layer / External Services.
+    High-level business view centered on actors, the system boundary, and
+    major business capabilities derived from API and integration evidence.
     """
-    frontend_ids  = [n.id for n in graph.nodes if n.type == "frontend"]
-    service_ids   = [n.id for n in graph.nodes if n.type == "service"]
-    data_ids      = [n.id for n in graph.nodes if n.type in ("database", "cache", "queue")]
-    external_ids  = [n.id for n in graph.nodes if n.type == "external_api"]
-
+    spec = build_conceptual_spec(scan, graph)
     nodes: list[DiagramNode] = []
-    edges: list[DiagramEdge] = []
-
-    if frontend_ids:
-        nodes.append(DiagramNode(
-            id="concept-presentation", label="Presentation",
-            type="frontend", layer="presentation",
-        ))
-    if service_ids:
-        nodes.append(DiagramNode(
-            id="concept-application", label="Application",
-            type="backend", layer="application",
-            severity=_worst_severity(sev_index, service_ids),
-        ))
-    if data_ids:
-        nodes.append(DiagramNode(
-            id="concept-data", label="Data Layer",
-            type="database", layer="data",
-            severity=_worst_severity(sev_index, data_ids),
-        ))
-    if external_ids:
-        nodes.append(DiagramNode(
-            id="concept-external", label="External Services",
-            type="external", layer="external",
-        ))
-
-    # Edges between buckets (only if both exist)
-    def _node_ids() -> set[str]:
-        return {n.id for n in nodes}
-
-    nids = _node_ids()
-    pairs = [
-        ("concept-presentation", "concept-application", "HTTP"),
-        ("concept-application",  "concept-data",        "reads/writes"),
-        ("concept-application",  "concept-external",    "calls"),
-        ("concept-data",         "concept-external",    ""),
+    groups = [
+        DiagramGroup(id="users", label="Users & Actors"),
+        DiagramGroup(id="system", label="System Boundary"),
+        DiagramGroup(id="capabilities", label="Business Capabilities"),
+        DiagramGroup(id="external_partners", label="External Partners"),
+        DiagramGroup(id="gaps", label="Detected Gaps"),
     ]
-    for src, tgt, lbl in pairs:
-        if src in nids and tgt in nids:
-            edges.append(DiagramEdge(id=f"{src}--{tgt}", source=src, target=tgt, label=lbl))
 
-    return DiagramView(id="conceptual", label="Conceptual", nodes=nodes, edges=edges)
+    for actor in spec["actors"]:
+        nodes.append(DiagramNode(
+            id=actor["id"],
+            label=actor["label"],
+            type="frontend",
+            layer="presentation",
+            group="users",
+            description=actor["description"],
+        ))
+
+    system = spec["system"]
+    nodes.append(DiagramNode(
+            id=system["id"],
+            label=system["label"],
+            type="backend", layer="application",
+            group="system",
+            severity=_worst_severity(sev_index, system["all_ids"]),
+            description=system["description"],
+    ))
+
+    for capability in spec["capabilities"]:
+        nodes.append(DiagramNode(
+            id=capability["id"],
+            label=capability["label"],
+            type="backend",
+            layer="application",
+            group="capabilities",
+            description=capability["description"],
+        ))
+
+    for partner in spec["external_partners"]:
+        nodes.append(DiagramNode(
+            id=partner["id"],
+            label=partner["label"],
+            type="external",
+            layer="external",
+            group="external_partners",
+            description=partner["description"],
+        ))
+
+    for gap in spec["gaps"]:
+        nodes.append(DiagramNode(
+            id=gap["id"],
+            label=gap["label"],
+            type="external",
+            layer="external",
+            group="gaps",
+            description=gap["description"],
+        ))
+
+    edges = [
+        DiagramEdge(
+            id=f"{edge['source']}--{edge['target']}--{idx}",
+            source=edge["source"],
+            target=edge["target"],
+            label=edge["label"],
+            confidence=edge["confidence"],
+        )
+        for idx, edge in enumerate(spec["edges"], start=1)
+    ]
+
+    used_groups = {node.group for node in nodes if node.group}
+    return DiagramView(
+        id="conceptual",
+        label="Conceptual",
+        groups=[group for group in groups if group.id in used_groups],
+        nodes=nodes,
+        edges=edges,
+    )
 
 
 def _system_context_view(

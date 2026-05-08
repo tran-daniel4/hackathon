@@ -12,11 +12,14 @@ import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
 
+const GITHUB_TOKEN_KEY = "sb_github_token";
+
 type AuthContextValue = {
   loading: boolean;
   session: Session | null;
   supabase: SupabaseClient | null;
   user: User | null;
+  githubToken: string | null;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -25,6 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [githubToken, setGithubToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem(GITHUB_TOKEN_KEY);
+  });
 
   useEffect(() => {
     const client = createClient();
@@ -42,9 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     client.auth.getSession().then(({ data, error }) => {
-      if (!isMounted) {
-        return;
-      }
+      if (!isMounted) return;
 
       if (error) {
         setSession(null);
@@ -53,18 +58,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSession(data.session);
+      if (data.session?.provider_token) {
+        sessionStorage.setItem(GITHUB_TOKEN_KEY, data.session.provider_token);
+        setGithubToken(data.session.provider_token);
+      }
       setLoading(false);
     });
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, nextSession) => {
-      if (!isMounted) {
-        return;
-      }
+    } = client.auth.onAuthStateChange((event, nextSession) => {
+      if (!isMounted) return;
 
       setSession(nextSession);
       setLoading(false);
+
+      if (nextSession?.provider_token) {
+        sessionStorage.setItem(GITHUB_TOKEN_KEY, nextSession.provider_token);
+        setGithubToken(nextSession.provider_token);
+      } else if (event === "SIGNED_OUT") {
+        sessionStorage.removeItem(GITHUB_TOKEN_KEY);
+        setGithubToken(null);
+      }
     });
 
     return () => {
@@ -79,8 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       supabase,
       user: session?.user ?? null,
+      githubToken,
     }),
-    [loading, session, supabase],
+    [loading, session, supabase, githubToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
