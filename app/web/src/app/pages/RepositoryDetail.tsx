@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Activity, LayoutGrid, Code, Settings as SettingsIcon, AlertCircle, TrendingUp, Layers } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 import { DiagramView } from "@/components/DiagramView";
 import type { RawDiagram, ViewId } from "@/components/visualization/types";
 
@@ -37,8 +38,11 @@ const VIEW_ID_MAP: Record<ArchitectureView, ViewId> = {
 };
 
 export function RepositoryDetail({ repository }: RepositoryDetailProps) {
+  const { session } = useAuth();
   const [currentView, setCurrentView] = useState<ArchitectureView>("component");
   const [diagrams, setDiagrams] = useState<RawDiagram[] | null>(null);
+  const githubToken =
+    (session as { provider_token?: string | null } | null)?.provider_token ?? null;
 
   const recentActivity = [
     { id: "1", type: "update",  message: "API endpoint /users optimized",                  time: "5 min ago",  severity: "info" },
@@ -73,7 +77,14 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
     }
 
     if (currentView === "component") {
-      return <DiagramView onDiagrams={setDiagrams} />;
+      return (
+        <DiagramView
+          onDiagrams={setDiagrams}
+          repositoryName={repository.name}
+          repositoryUrl={repository.url}
+          githubToken={githubToken}
+        />
+      );
     }
 
     return (

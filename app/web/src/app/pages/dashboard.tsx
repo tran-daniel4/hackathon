@@ -36,7 +36,7 @@ export function Dashboard() {
   const { supabase, user, session } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.email ?? "User";
+  const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.user_metadata?.user_name ?? user?.email ?? "User";
   const initials = fullName
     ?.split(" ")
     .map((n: string) => n[0])
