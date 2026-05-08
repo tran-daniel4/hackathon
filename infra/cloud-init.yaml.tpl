@@ -94,13 +94,46 @@ runcmd:
   # Run migrations against Supabase Postgres
   - cd /opt/dynodocs/app/api && /opt/dynodocs/app/api/.venv/bin/alembic upgrade head
 
-  # Start API
+  # Create systemd service for API
   - |
-    nohup /opt/dynodocs/app/api/.venv/bin/uvicorn main:app \
-      --app-dir /opt/dynodocs/app/api \
-      --host 0.0.0.0 --port 8000 > /var/log/api.log 2>&1 &
+    cat > /etc/systemd/system/dynodocs-api.service <<'EOF'
+    [Unit]
+    Description=DynoDocs API
+    After=network.target
 
-  # Start frontend
+    [Service]
+    WorkingDirectory=/opt/dynodocs/app/api
+    EnvironmentFile=/opt/dynodocs/app/api/.env
+    ExecStart=/opt/dynodocs/app/api/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+    Restart=always
+    RestartSec=5
+    StandardOutput=journal
+    StandardError=journal
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+  # Create systemd service for frontend
   - |
-    cd /opt/dynodocs/app/web && nohup npm run start -- --hostname 0.0.0.0 --port 3000 \
-      > /var/log/web.log 2>&1 &
+    cat > /etc/systemd/system/dynodocs-web.service <<'EOF'
+    [Unit]
+    Description=DynoDocs Web
+    After=network.target
+
+    [Service]
+    WorkingDirectory=/opt/dynodocs/app/web
+    ExecStart=/usr/bin/npm run start -- --hostname 0.0.0.0 --port 3000
+    Restart=always
+    RestartSec=5
+    StandardOutput=journal
+    StandardError=journal
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+  # Enable and start services
+  - systemctl daemon-reload
+  - systemctl enable dynodocs-api dynodocs-web
+  - systemctl start dynodocs-api dynodocs-web
