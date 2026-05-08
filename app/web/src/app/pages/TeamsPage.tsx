@@ -198,11 +198,15 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
         return r.json();
       })
       .then((updated: ApiMember) => {
-        setSelectedTeam((prev) =>
-          prev
-            ? { ...prev, members: prev.members.map((m) => m.profile_id === profileId ? { ...m, role: updated.role } : m) }
-            : prev
-        );
+        setSelectedTeam((prev) => {
+          if (!prev) return prev;
+          const members = prev.members.map((m) => {
+            if (m.profile_id === profileId) return { ...m, role: updated.role };
+            if (updated.role === "admin" && m.role === "admin") return { ...m, role: "member" };
+            return m;
+          });
+          return { ...prev, members };
+        });
       })
       .catch(() => toast.error("Failed to update role"));
   };
@@ -243,6 +247,10 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
         else toast.error("Failed to delete team");
       });
   };
+
+  const isCurrentUserAdmin = selectedTeam?.members.some(
+    (m) => m.profile_id === currentUserId && m.role === "admin"
+  ) ?? false;
 
   const memberDisplayName = (member: ApiMember) =>
     member.profile_id === currentUserId ? (`${member.full_name} (You)` || `${member.profile_id.slice(0, 8)}… (You)`) : (member.full_name || `${member.profile_id.slice(0, 8)}…`);
@@ -510,7 +518,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        {member.profile_id === currentUserId ? (
+                        {member.profile_id === currentUserId || !isCurrentUserAdmin ? (
                           <span className={`text-[11px] uppercase tracking-widest ${ROLE_COLOR[member.role] ?? "text-white/50"}`}>
                             {member.role}
                           </span>
