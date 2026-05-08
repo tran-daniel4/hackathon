@@ -26,29 +26,29 @@ runcmd:
   # Derive the droplet's public URLs for frontend/API wiring
   - |
     PUBLIC_IP="$(curl -fsSL http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)"
-    FRONTEND_ORIGIN="http://${PUBLIC_IP}:3000"
-    API_PUBLIC_URL="http://${PUBLIC_IP}:8000"
+    FRONTEND_ORIGIN="http://$${PUBLIC_IP}:3000"
+    API_PUBLIC_URL="http://$${PUBLIC_IP}:8000"
     if [ -n "${allowed_origins}" ]; then
-      COMBINED_ALLOWED_ORIGINS="${allowed_origins},${FRONTEND_ORIGIN}"
+      COMBINED_ALLOWED_ORIGINS="${allowed_origins},$${FRONTEND_ORIGIN}"
     else
-      COMBINED_ALLOWED_ORIGINS="${FRONTEND_ORIGIN}"
+      COMBINED_ALLOWED_ORIGINS="$${FRONTEND_ORIGIN}"
     fi
     printf 'PUBLIC_IP=%s\nFRONTEND_ORIGIN=%s\nAPI_PUBLIC_URL=%s\nCOMBINED_ALLOWED_ORIGINS=%s\n' \
-      "${PUBLIC_IP}" "${FRONTEND_ORIGIN}" "${API_PUBLIC_URL}" "${COMBINED_ALLOWED_ORIGINS}" \
+      "$${PUBLIC_IP}" "$${FRONTEND_ORIGIN}" "$${API_PUBLIC_URL}" "$${COMBINED_ALLOWED_ORIGINS}" \
       > /opt/dynodocs/.runtime-env
 
   # Write shared root .env for frontend-friendly defaults
   - |
     . /opt/dynodocs/.runtime-env
     cat > /opt/dynodocs/.env <<EOF
-    NEXT_PUBLIC_API_URL=${API_PUBLIC_URL}
+    NEXT_PUBLIC_API_URL=$${API_PUBLIC_URL}
     NEXT_PUBLIC_SUPABASE_URL=${supabase_url}
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabase_publishable_key}
     SUPABASE_URL=${supabase_url}
     DATABASE_URL=${supabase_database_url}
     ALEMBIC_DATABASE_URL=${supabase_alembic_database_url}
     REDIS_URL=redis://localhost:6379/0
-    ALLOWED_ORIGINS=${COMBINED_ALLOWED_ORIGINS}
+    ALLOWED_ORIGINS=$${COMBINED_ALLOWED_ORIGINS}
     EOF
 
   # Write API .env
@@ -58,7 +58,7 @@ runcmd:
   - |
     . /opt/dynodocs/.runtime-env
     cat > /opt/dynodocs/app/web/.env.production <<EOF
-    NEXT_PUBLIC_API_URL=${API_PUBLIC_URL}
+    NEXT_PUBLIC_API_URL=$${API_PUBLIC_URL}
     NEXT_PUBLIC_SUPABASE_URL=${supabase_url}
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabase_publishable_key}
     EOF
