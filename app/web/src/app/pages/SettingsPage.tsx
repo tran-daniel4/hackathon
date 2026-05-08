@@ -41,10 +41,8 @@ export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
   }, [accessToken]);
 
   const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
     teamUpdates: true,
     systemAlerts: true,
-    weeklyDigest: false,
   });
 
   const handleSaveProfile = () => {
@@ -177,10 +175,8 @@ export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
                         {key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
                       </p>
                       <p className="text-[12px] text-white/50">
-                        {key === "emailNotifications" && "Receive email notifications for updates"}
                         {key === "teamUpdates" && "Get notified when team members make changes"}
                         {key === "systemAlerts" && "Receive alerts for system issues"}
-                        {key === "weeklyDigest" && "Weekly summary of activity"}
                       </p>
                     </div>
                     <button
