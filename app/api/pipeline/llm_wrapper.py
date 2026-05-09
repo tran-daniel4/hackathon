@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 from typing import Literal
 
+import anthropic
 import httpx
 from pydantic import BaseModel
 
@@ -21,15 +22,27 @@ from pipeline.rules_engine import Issue
 
 logger = logging.getLogger(__name__)
 
+_anthropic = anthropic.Anthropic()
+_CLAUDE_MODEL = "claude-sonnet-4-6"
+
+
+def _anthropic_message_text(message) -> str:
+    parts: list[str] = []
+    for block in message.content:
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts).strip()
+
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 class LLMConfig(BaseModel):
-    provider: Literal["ollama", "openai_compat"] = "ollama"
+    provider: Literal["claude", "ollama", "openai_compat"] = "claude"
     base_url: str = "http://localhost:11434"
     model: str = "deepseek-coder:6.7b-instruct-q4_K_M"
-    api_key: str = ""       # required only for openai_compat
-    timeout: float = 120.0  # shorter than pipeline timeout — prompts are focused
+    api_key: str = ""
+    timeout: float = 120.0
     max_tokens: int = 512
 
 
@@ -160,9 +173,21 @@ def _code_snippet(description: str, root: Path) -> str:
 # ── LLM backends ──────────────────────────────────────────────────────────────
 
 def _call_llm(prompt: str, cfg: LLMConfig) -> str:
+    if cfg.provider == "claude":
+        return _call_claude(prompt)
     if cfg.provider == "ollama":
         return _call_ollama(prompt, cfg)
     return _call_openai_compat(prompt, cfg)
+
+
+def _call_claude(prompt: str) -> str:
+    message = _anthropic.messages.create(
+        model=_CLAUDE_MODEL,
+        max_tokens=1024,
+        system="Respond with valid JSON only. No markdown fences, no explanation, no extra text.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return _anthropic_message_text(message)
 
 
 def _call_ollama(prompt: str, cfg: LLMConfig) -> str:

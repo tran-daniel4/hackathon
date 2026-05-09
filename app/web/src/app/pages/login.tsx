@@ -5,6 +5,7 @@ import { WaveBackground } from "@/components/WaveBackground";
 import { FaGithub } from "react-icons/fa";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { buildAuthCallbackUrl } from "@/lib/site-url";
 
 interface LoginPageProps {
   onClose?: () => void;
@@ -28,13 +29,15 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
         throw new Error("Supabase auth is not configured yet.");
       }
 
+      const callbackUrl = buildAuthCallbackUrl();
+
       if (isSignUp) {
         const { error, data } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: name },
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: callbackUrl,
           },
         });
 
@@ -77,7 +80,7 @@ export function LoginPage({ onClose, onLogin, onSwitchToSignUp }: LoginPageProps
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: buildAuthCallbackUrl(),
         scopes: "read:user user:email public_repo",
       },
     });

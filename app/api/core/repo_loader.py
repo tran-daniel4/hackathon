@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import quote, urlparse
 
-from pipeline.scanner import _MAX_FILE_BYTES, _SKIP_DIRS, _SKIP_EXTENSIONS
+from pipeline.scanner import _MAX_FILE_BYTES, _SKIP_DIRS, _SKIP_EXTENSIONS, _SKIP_FILENAMES, _is_test_like_path
 
 
 @dataclass
@@ -126,6 +126,8 @@ def load_repo_files(root: Path) -> dict[str, str]:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")]
         for filename in filenames:
+            if filename.lower() in _SKIP_FILENAMES:
+                continue
             path = Path(dirpath) / filename
             if path.suffix.lower() in _SKIP_EXTENSIONS:
                 continue
@@ -133,6 +135,8 @@ def load_repo_files(root: Path) -> dict[str, str]:
                 if path.stat().st_size > _MAX_FILE_BYTES:
                     continue
                 rel = str(path.relative_to(root)).replace("\\", "/")
+                if _is_test_like_path(rel):
+                    continue
                 files[rel] = path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue

@@ -5,8 +5,7 @@ import { useState, useEffect } from "react";
 import { User, Bell, Shield, Users, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthProvider";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { buildApiUrl } from "@/lib/api";
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -28,7 +27,7 @@ export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
     Promise.resolve()
       .then(() => {
         setProfileLoading(true);
-        return fetch(`${API_BASE}/auth/me`, {
+        return fetch(buildApiUrl("/auth/me"), {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
       })
@@ -54,7 +53,7 @@ export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
       return;
     }
     setProfileSaving(true);
-    fetch(`${API_BASE}/auth/me`, {
+    fetch(buildApiUrl("/auth/me"), {
       method: "PATCH",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ full_name: profileData.name.trim() }),

@@ -19,6 +19,32 @@ def _parent_dir(path: str) -> str:
     return parts[0] if len(parts) > 1 else ""
 
 
+def _classify_infrastructure_service(name: str, cfg: dict | None = None) -> str:
+    lower_name = name.lower()
+    image = str((cfg or {}).get("image", "")).lower() if isinstance(cfg, dict) else ""
+    combined = f"{lower_name} {image}"
+
+    if any(token in combined for token in ("redis", "memcached")):
+        return "cache"
+    if any(
+        token in combined
+        for token in (
+            "postgres",
+            "mysql",
+            "mariadb",
+            "mongo",
+            "mongodb",
+            "sqlserver",
+            "mssql",
+            "cassandra",
+            "influxdb",
+            "elasticsearch",
+        )
+    ):
+        return "database"
+    return "service"
+
+
 class ServiceDetector(Analyzer):
     """Detects services from docker-compose.yml and Dockerfiles."""
 
@@ -60,7 +86,7 @@ class ServiceDetector(Analyzer):
             ))
             patch.nodes.append(NodeFact(
                 id=node_id,
-                type="service",
+                type=_classify_infrastructure_service(svc_name),  # type: ignore[arg-type]
                 name=svc_name,
                 tags=["docker"],
                 confidence="verified",
@@ -111,7 +137,10 @@ class ServiceDetector(Analyzer):
             ))
 
             # Determine if it's a worker
-            node_type: str = "service"
+            node_type: str = _classify_infrastructure_service(
+                str(svc_name),
+                svc_cfg if isinstance(svc_cfg, dict) else None,
+            )
             command = ""
             if isinstance(svc_cfg, dict):
                 cmd = svc_cfg.get("command", "")

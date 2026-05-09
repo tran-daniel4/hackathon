@@ -27,6 +27,20 @@ class AnalysisSyncRequest(BaseModel):
     github_token: str | None = None
 
 
+class AnalysisUploadRequest(BaseModel):
+    files: dict[str, str]
+
+
+def _is_rate_limit_like_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "429" in message
+        or "too many requests" in message
+        or "rate limit" in message
+        or "abuse detection" in message
+    )
+
+
 def _repos_cache_key(user_id: uuid.UUID) -> str:
     return f"repos:{user_id}"
 
@@ -176,27 +190,90 @@ async def sync_repo_analysis(
 ) -> dict[str, Any]:
     repo = await _get_repo_or_404(db, current_user.id, repo_id)
     latest = await _get_latest_completed_analysis(db, repo_id)
+    redis = get_redis()
 
     should_refresh = latest is None
     if latest is not None and is_github_repo_url(repo.url):
-        latest_head = get_github_repo_head_sha(
-            repo.url,
-            branch=latest.branch,
-            github_token=body.github_token,
-        )
+        if not body.github_token:
+            payload = _serialize_analysis_snapshot(latest, repo)
+            await redis.set(_analysis_cache_key(repo_id), json.dumps(payload), ex=_CACHE_TTL)
+            return payload
+
+        try:
+            latest_head = get_github_repo_head_sha(
+                repo.url,
+                branch=latest.branch,
+                github_token=body.github_token,
+            )
+        except Exception:
+            latest_head = None
+
         if latest_head and latest.commit_sha and latest_head != latest.commit_sha:
             should_refresh = True
 
     if not should_refresh and latest is not None:
         payload = _serialize_analysis_snapshot(latest, repo)
-        redis = get_redis()
         await redis.set(_analysis_cache_key(repo_id), json.dumps(payload), ex=_CACHE_TTL)
         return payload
 
-    bundle = await execute_analysis(
-        repo_url=repo.url,
-        github_token=body.github_token,
+    try:
+        bundle = await execute_analysis(
+            repo_url=repo.url,
+            github_token=body.github_token,
+        )
+    except Exception as exc:
+        if latest is not None:
+            payload = _serialize_analysis_snapshot(latest, repo)
+            await redis.set(_analysis_cache_key(repo_id), json.dumps(payload), ex=_CACHE_TTL)
+            return payload
+
+        if _is_rate_limit_like_error(exc):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="GitHub rate limit reached during analysis. Please try again in a few minutes or sign in with GitHub OAuth before syncing.",
+            ) from exc
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Repository analysis failed: {exc}",
+        ) from exc
+
+    analysis = await _save_repository_analysis(
+        db=db,
+        repo=repo,
+        bundle=bundle,
     )
+    payload = _serialize_analysis_snapshot(analysis, repo)
+
+    await redis.set(_analysis_cache_key(repo_id), json.dumps(payload), ex=_CACHE_TTL)
+    await redis.delete(_alerts_cache_key(current_user.id))
+    await redis.delete(_repos_cache_key(current_user.id))
+    return payload
+
+
+@router.post("/{repo_id}/analysis/upload")
+async def upload_repo_analysis(
+    repo_id: uuid.UUID,
+    body: AnalysisUploadRequest,
+    current_user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    repo = await _get_repo_or_404(db, current_user.id, repo_id)
+
+    if not body.files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No local project files were provided",
+        )
+
+    try:
+        bundle = await execute_analysis(files=body.files)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Local project analysis failed: {exc}",
+        ) from exc
+
     analysis = await _save_repository_analysis(
         db=db,
         repo=repo,

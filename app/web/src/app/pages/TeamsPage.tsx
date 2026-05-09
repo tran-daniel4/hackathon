@@ -5,8 +5,7 @@ import { useState, useEffect } from "react";
 import { Users, Plus, Trash2, X, ChevronRight, ChevronDown, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthProvider";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { buildApiUrl } from "@/lib/api";
 
 interface ApiProfile {
   id: string;
@@ -77,7 +76,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
 
   const loadTeamDetail = (team: ApiTeam) => {
     setTeamLoading(true);
-    fetch(`${API_BASE}/teams/${team.id}`, {
+    fetch(buildApiUrl(`/teams/${team.id}`), {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => {
@@ -92,7 +91,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
   useEffect(() => {
     if (!accessToken) return;
     setTeamsLoading(true);
-    fetch(`${API_BASE}/teams`, {
+    fetch(buildApiUrl("/teams"), {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => {
@@ -116,7 +115,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
       toast.error("Team name is required");
       return;
     }
-    fetch(`${API_BASE}/teams`, {
+    fetch(buildApiUrl("/teams"), {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ name: newTeamName.trim() }),
@@ -142,7 +141,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
     }
     setInviteSearching(true);
     setInviteSelected(null);
-    fetch(`${API_BASE}/profiles/search?q=${encodeURIComponent(searchQuery.trim())}`, {
+    fetch(buildApiUrl(`/profiles/search?q=${encodeURIComponent(searchQuery.trim())}`), {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => {
@@ -163,7 +162,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
       return;
     }
     if (!selectedTeam) return;
-    fetch(`${API_BASE}/teams/${selectedTeam.id}/members`, {
+    fetch(buildApiUrl(`/teams/${selectedTeam.id}/members`), {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ profile_id: inviteSelected.id, role: inviteRole }),
@@ -188,7 +187,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
 
   const handleChangeRole = (profileId: string, newRole: "admin" | "member") => {
     if (!selectedTeam) return;
-    fetch(`${API_BASE}/teams/${selectedTeam.id}/members/${profileId}`, {
+    fetch(buildApiUrl(`/teams/${selectedTeam.id}/members/${profileId}`), {
       method: "PATCH",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ role: newRole }),
@@ -213,7 +212,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
 
   const handleRemoveMember = (profileId: string) => {
     if (!selectedTeam) return;
-    fetch(`${API_BASE}/teams/${selectedTeam.id}/members/${profileId}`, {
+    fetch(buildApiUrl(`/teams/${selectedTeam.id}/members/${profileId}`), {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     })
@@ -229,7 +228,7 @@ export function TeamsPage({ onBack: _onBack }: TeamsPageProps) {
 
   const handleDeleteTeam = (teamId: string) => {
     const team = teams.find((t) => t.id === teamId);
-    fetch(`${API_BASE}/teams/${teamId}`, {
+    fetch(buildApiUrl(`/teams/${teamId}`), {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     })

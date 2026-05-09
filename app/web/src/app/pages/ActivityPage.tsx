@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { buildApiUrl } from "@/lib/api";
 
 interface RepoAlert {
   id: string;
@@ -34,8 +35,6 @@ interface Activity {
   timestamp: string;
   details?: string;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const FILTER_OPTIONS = [
   { value: "all", label: "All Alerts" },
@@ -94,7 +93,7 @@ export function ActivityPage() {
       setError("");
 
       try {
-        const alertsRes = await fetch(`${API_BASE}/repos/alerts`, {
+        const alertsRes = await fetch(buildApiUrl("/repos/alerts"), {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!alertsRes.ok) throw new Error("Failed to load repository alerts");

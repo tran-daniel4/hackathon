@@ -7,7 +7,7 @@ from collections import defaultdict
 from bottlenecks.evidence import build_evidence_snippets
 from bottlenecks.models import DeepSeekReview, RepoSignals, RuleFinding
 from graph.models import GraphFacts
-from pipeline.llm_wrapper import LLMConfig, _call_ollama, _call_openai_compat
+from pipeline.llm_wrapper import LLMConfig, _call_claude, _call_ollama, _call_openai_compat
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,8 @@ def _build_prompt(bundle: list[RuleFinding], graph_facts: GraphFacts, repo_signa
 
 
 def _call_llm(prompt: str, cfg: LLMConfig) -> str:
+    if cfg.provider == "claude":
+        return _call_claude(prompt)
     if cfg.provider == "ollama":
         return _call_ollama(prompt, cfg)
     return _call_openai_compat(prompt, cfg)

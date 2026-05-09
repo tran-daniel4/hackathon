@@ -7,11 +7,13 @@ import { transformView } from "./viewTransformer";
 import { computeLayout } from "./layoutEngine";
 import { DiagramNode } from "./DiagramNode";
 import { DiagramEdge } from "./DiagramEdge";
-import type { EdgeLayout, RawDiagram, ViewId } from "./types";
+import type { EdgeLayout, NodeLayout, RawDiagram, ViewId } from "./types";
 
 interface ArchDiagramProps {
   diagrams: RawDiagram[];
   viewId: ViewId;
+  onNodeClick?: (node: NodeLayout) => void;
+  selectedNodeId?: string;
 }
 
 interface OrbState {
@@ -79,7 +81,7 @@ function getGroupPalette(groupId: string): { fill: string; stroke: string; title
   return { fill, stroke, title };
 }
 
-export function ArchDiagram({ diagrams, viewId }: ArchDiagramProps) {
+export function ArchDiagram({ diagrams, viewId, onNodeClick, selectedNodeId }: ArchDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [orbs, setOrbs] = useState<OrbState[]>([]);
@@ -393,7 +395,12 @@ export function ArchDiagram({ diagrams, viewId }: ArchDiagramProps) {
 
           <AnimatePresence>
             {activeLayout.nodes.map((node) => (
-              <DiagramNode key={node.id} node={node} />
+              <DiagramNode
+                key={node.id}
+                node={node}
+                isSelected={node.id === selectedNodeId}
+                onClick={() => onNodeClick?.(node)}
+              />
             ))}
           </AnimatePresence>
 
