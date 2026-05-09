@@ -56,6 +56,23 @@ async function saveRepo(
   };
 }
 
+async function syncRepoAnalysis(
+  repoId: string,
+  accessToken: string,
+  githubToken: string,
+): Promise<void> {
+  await fetch(`${API_BASE}/repos/${repoId}/analysis/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      github_token: githubToken,
+    }),
+  });
+}
+
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
   const { session, githubToken } = useAuth();
   const hasGithub = !!githubToken;
@@ -113,6 +130,9 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
       for (const repo of selected) {
         const saved = await saveRepo(repo.name, repo.html_url, accessToken);
         onAdd(saved);
+        if (githubToken) {
+          void syncRepoAnalysis(saved.id, accessToken, githubToken);
+        }
       }
       onClose();
     } catch (err) {

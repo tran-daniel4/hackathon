@@ -43,24 +43,20 @@ interface RepositoryFinding {
   why?: string;
 }
 
-interface AnalyzeResponse {
+interface AnalysisSnapshotResponse {
+  analyzed_at?: string;
   diagrams?: RawDiagram[];
   bottlenecks?: {
     findings?: RepositoryFinding[];
-  };
-  analysis_debug?: {
-    repo?: {
-      analyzed_at?: string;
-    };
   };
 }
 
 type ArchitectureView = "context" | "conceptual" | "component" | "operational";
 
 const VIEW_ID_MAP: Record<ArchitectureView, ViewId> = {
-  context:     "system_context",
-  conceptual:  "conceptual",
-  component:   "component",
+  context: "system_context",
+  conceptual: "conceptual",
+  component: "component",
   operational: "operational",
 };
 
@@ -87,11 +83,24 @@ function relativeTime(input?: string): string {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
+function severityRank(severity: RepositoryFinding["severity"]): number {
+  switch (severity) {
+    case "critical":
+      return 0;
+    case "high":
+      return 1;
+    case "medium":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
 export function RepositoryDetail({ repository }: RepositoryDetailProps) {
-  const { githubToken } = useAuth();
+  const { session, githubToken } = useAuth();
   const [currentView, setCurrentView] = useState<ArchitectureView>("component");
   const [diagrams, setDiagrams] = useState<RawDiagram[] | null>(null);
-  const [recentEvents, setRecentEvents] = useState<Array<{
+  const [recentAlerts, setRecentAlerts] = useState<Array<{
     id: string;
     message: string;
     time: string;
@@ -102,20 +111,81 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   const [error, setError] = useState("");
   const hasStarted = useRef(false);
 
+  const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
   const isGitHub = isGitHubUrl(repository.url);
 
-  const runAnalysis = useCallback(async () => {
-    setStatus("loading");
-    setError("");
-    setDiagrams(null);
-    setRecentEvents([]);
+  const applySnapshot = useCallback((data: AnalysisSnapshotResponse) => {
+    if (data.diagrams?.length) {
+      setDiagrams(data.diagrams);
+    }
+
+    setRecentAlerts(
+      (data.bottlenecks?.findings ?? [])
+        .slice()
+        .sort((a, b) => {
+          const diff = severityRank(a.severity) - severityRank(b.severity);
+          if (diff !== 0) return diff;
+          return (b.confidence ?? 0) - (a.confidence ?? 0);
+        })
+        .slice(0, 5)
+        .map((finding) => ({
+          id: finding.id,
+          message: finding.title,
+          time: relativeTime(data.analyzed_at),
+          severity: finding.severity,
+          details: finding.why,
+        })),
+    );
+  }, []);
+
+  const loadLatestAnalysis = useCallback(async (): Promise<boolean> => {
+    if (!accessToken) {
+      return false;
+    }
 
     try {
-      const res = await fetch(`${API_BASE}/analyze`, {
+      const res = await fetch(`${API_BASE}/repos/${repository.id}/analysis/latest`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (res.status === 404) {
+        return false;
+      }
+      if (!res.ok) {
+        const body = (await res.json()) as { detail?: string };
+        throw new Error(body.detail ?? res.statusText);
+      }
+
+      applySnapshot((await res.json()) as AnalysisSnapshotResponse);
+      setStatus("done");
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+      setStatus("error");
+      return false;
+    }
+  }, [accessToken, applySnapshot, repository.id]);
+
+  const syncAnalysis = useCallback(async (background = false) => {
+    if (!accessToken) {
+      return;
+    }
+
+    if (!background) {
+      setStatus("loading");
+      setError("");
+      setDiagrams(null);
+      setRecentAlerts([]);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/repos/${repository.id}/analysis/sync`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          repo_url: repository.url,
           github_token: githubToken ?? undefined,
         }),
       });
@@ -125,88 +195,69 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
         throw new Error(body.detail ?? res.statusText);
       }
 
-      const data = (await res.json()) as AnalyzeResponse;
-      if (data.diagrams?.length) setDiagrams(data.diagrams);
-      const analyzedAt = data.analysis_debug?.repo?.analyzed_at;
-      const severityRank = (severity: RepositoryFinding["severity"]) => {
-        switch (severity) {
-          case "critical":
-            return 0;
-          case "high":
-            return 1;
-          case "medium":
-            return 2;
-          default:
-            return 3;
-        }
-      };
-      setRecentEvents(
-        (data.bottlenecks?.findings ?? [])
-          .slice()
-          .sort((a, b) => {
-            const diff = severityRank(a.severity) - severityRank(b.severity);
-            if (diff !== 0) return diff;
-            return (b.confidence ?? 0) - (a.confidence ?? 0);
-          })
-          .slice(0, 5)
-          .map((finding) => ({
-            id: finding.id,
-            message: finding.title,
-            time: relativeTime(analyzedAt),
-            severity: finding.severity,
-            details: finding.why,
-          })),
-      );
+      applySnapshot((await res.json()) as AnalysisSnapshotResponse);
       setStatus("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
-      setStatus("error");
+      if (!background) {
+        setError(err instanceof Error ? err.message : "Analysis failed");
+        setStatus("error");
+      }
     }
-  }, [githubToken, repository.url]);
+  }, [accessToken, applySnapshot, githubToken, repository.id]);
 
   useEffect(() => {
-    if (!isGitHub || hasStarted.current) return;
+    if (!isGitHub || !accessToken || hasStarted.current) return;
     hasStarted.current = true;
-    void runAnalysis();
-  }, [isGitHub, runAnalysis]);
+
+    void (async () => {
+      setStatus("loading");
+      setError("");
+      const hasSnapshot = await loadLatestAnalysis();
+      if (hasSnapshot) {
+        void syncAnalysis(true);
+        return;
+      }
+      await syncAnalysis(false);
+    })();
+  }, [accessToken, isGitHub, loadLatestAnalysis, syncAnalysis]);
 
   const systemMetrics = [
-    { label: "Active Services",   value: "12",    trend: "+2" },
-    { label: "API Requests/min",  value: "2.4K",  trend: "+12%" },
+    { label: "Active Services", value: "12", trend: "+2" },
+    { label: "API Requests/min", value: "2.4K", trend: "+12%" },
     { label: "Avg Response Time", value: "145ms", trend: "-8%" },
-    { label: "Error Rate",        value: "0.03%", trend: "-15%" },
+    { label: "Error Rate", value: "0.03%", trend: "-15%" },
   ];
 
   const views = {
-    context:     { label: "System Context", description: "High-level view",                icon: Layers },
-    conceptual:  { label: "Conceptual",     description: "Business-level system overview", icon: LayoutGrid },
-    component:   { label: "Component",      description: "Developer architecture view",    icon: Code },
-    operational: { label: "Operational",    description: "DevOps infrastructure view",     icon: SettingsIcon },
+    context: { label: "System Context", description: "High-level view", icon: Layers },
+    conceptual: { label: "Conceptual", description: "Business-level system overview", icon: LayoutGrid },
+    component: { label: "Component", description: "Developer architecture view", icon: Code },
+    operational: { label: "Operational", description: "DevOps infrastructure view", icon: SettingsIcon },
   };
 
   const renderDiagramArea = () => {
     if (status === "loading") {
       return (
-        <div className="flex flex-col items-center justify-center h-64 gap-3">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-          <div className="text-[13px] text-white/60">Generating architecture diagram…</div>
-          <div className="text-[11px] text-white/30">Analyzing code → Building graph → Generating views</div>
+        <div className="flex h-64 flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <div className="text-[13px] text-white/60">Loading saved architecture analysis...</div>
+          <div className="text-[11px] text-white/30">Reading latest snapshot -&gt; Checking for repository updates</div>
         </div>
       );
     }
 
     if (status === "error") {
       return (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <AlertCircle className="w-8 h-8 text-red-400" />
+        <div className="flex h-64 flex-col items-center justify-center gap-4">
+          <AlertCircle className="h-8 w-8 text-red-400" />
           <div className="text-[13px] text-red-400">Analysis failed</div>
-          <div className="text-[11px] text-white/40 max-w-md text-center break-all">{error}</div>
+          <div className="max-w-md break-all text-center text-[11px] text-white/40">{error}</div>
           <button
             onClick={() => {
               hasStarted.current = true;
-              void runAnalysis();
+              void syncAnalysis(false);
             }}
-            className="px-4 py-2 border border-white/20 text-[11px] uppercase tracking-[0.15em] hover:bg-white/5 transition-colors"
+            className="border border-white/20 px-4 py-2 text-[11px] uppercase tracking-[0.15em] transition-colors hover:bg-white/5"
           >
             Retry
           </button>
@@ -220,14 +271,14 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
 
     if (!isGitHub) {
       return (
-        <div className="flex items-center justify-center h-64 text-white/40 text-[13px] border border-dashed border-white/10">
+        <div className="flex h-64 items-center justify-center border border-dashed border-white/10 text-[13px] text-white/40">
           Diagram generation is only supported for GitHub repositories
         </div>
       );
     }
 
     return (
-      <div className="flex items-center justify-center h-64 text-white/40 text-[13px] border border-dashed border-white/10">
+      <div className="flex h-64 items-center justify-center border border-dashed border-white/10 text-[13px] text-white/40">
         No diagram data available
       </div>
     );
@@ -235,19 +286,18 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
 
   return (
     <div className="bg-[#0a0a0f] text-white">
-      <div className="max-w-450 mx-auto px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main — Architecture View */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="border border-white/10 bg-[#0f0f15]/60 p-6">
-              <div className="flex items-center justify-between mb-6">
+      <div className="mx-auto max-w-450 px-8 py-12">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <div className="bg-[#0f0f15]/60 p-6 border border-white/10">
+              <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-[18px]">System Architecture</h2>
-                <div className="text-[11px] text-white/50 uppercase tracking-[0.15em]">
+                <div className="text-[11px] uppercase tracking-[0.15em] text-white/50">
                   {repository.componentsCount} Components
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+              <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
                 {(Object.keys(views) as ArchitectureView[]).map((viewKey) => {
                   const view = views[viewKey];
                   const Icon = view.icon;
@@ -257,14 +307,14 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setCurrentView(viewKey)}
-                      className={`p-4 border transition-all ${
+                      className={`border p-4 transition-all ${
                         currentView === viewKey
                           ? "border-blue-500 bg-blue-500/10"
                           : "border-white/10 bg-white/5 hover:bg-white/10"
                       }`}
                     >
-                      <Icon className={`w-5 h-5 mb-2 mx-auto ${currentView === viewKey ? "text-blue-400" : "text-white/60"}`} />
-                      <div className={`text-[12px] mb-1 ${currentView === viewKey ? "text-white" : "text-white/70"}`}>
+                      <Icon className={`mx-auto mb-2 h-5 w-5 ${currentView === viewKey ? "text-blue-400" : "text-white/60"}`} />
+                      <div className={`mb-1 text-[12px] ${currentView === viewKey ? "text-white" : "text-white/70"}`}>
                         {view.label}
                       </div>
                       <div className="text-[10px] text-white/40">{view.description}</div>
@@ -278,16 +328,15 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
               </div>
             </div>
 
-            {/* System Metrics */}
             <div className="border border-white/10 bg-[#0f0f15]/60 p-6">
-              <h3 className="text-[16px] mb-6 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-green-400" />
+              <h3 className="mb-6 flex items-center gap-2 text-[16px]">
+                <TrendingUp className="h-4 w-4 text-green-400" />
                 System Metrics
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 {systemMetrics.map((metric) => (
                   <div key={metric.label} className="border border-white/10 bg-white/5 p-4">
-                    <p className="text-[11px] text-white/50 mb-2 uppercase tracking-wider">{metric.label}</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">{metric.label}</p>
                     <div className="flex items-baseline gap-2">
                       <span className="text-[24px]">{metric.value}</span>
                       <span className={`text-[11px] ${metric.trend.startsWith("+") ? "text-green-400" : "text-blue-400"}`}>
@@ -300,48 +349,45 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
             </div>
           </div>
 
-          {/* Sidebar — Recent Activity */}
           <div className="space-y-6">
             <div className="border border-white/10 bg-[#0f0f15]/60 p-6">
-              <h3 className="text-[16px] mb-2 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-blue-400" />
+              <h3 className="mb-2 flex items-center gap-2 text-[16px]">
+                <Activity className="h-4 w-4 text-blue-400" />
                 Recent Alerts
               </h3>
-              <p className="text-[11px] text-white/50 mb-6">Top findings from the latest repository analysis</p>
+              <p className="mb-6 text-[11px] text-white/50">Top findings from the latest repository analysis</p>
 
               <div className="space-y-3">
-                {recentEvents.length === 0 ? (
+                {recentAlerts.length === 0 ? (
                   <div className="border border-white/10 bg-white/5 px-4 py-6 text-[12px] text-white/45">
                     {status === "loading"
-                      ? "Collecting recent alerts from analysis..."
+                      ? "Collecting recent alerts from saved analysis..."
                       : "No recent alerts found for this repository."}
                   </div>
-                ) : recentEvents.map((activity) => (
+                ) : recentAlerts.map((activity) => (
                   <motion.div
                     key={activity.id}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className={`border-l-2 pl-4 py-3 ${
+                    className={`border-l-2 py-3 pl-4 ${
                       activity.severity === "critical"
                         ? "border-red-500/50 bg-red-500/5"
                         : activity.severity === "high" || activity.severity === "medium"
-                        ? "border-yellow-500/50 bg-yellow-500/5"
-                        : "border-blue-500/30 bg-blue-500/5"
+                          ? "border-yellow-500/50 bg-yellow-500/5"
+                          : "border-blue-500/30 bg-blue-500/5"
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       {activity.severity === "critical" || activity.severity === "high" || activity.severity === "medium" ? (
-                        <AlertCircle className={`w-4 h-4 mt-0.5 ${
-                          activity.severity === "critical" ? "text-red-400" : "text-yellow-400"
-                        }`} />
+                        <AlertCircle className={`mt-0.5 h-4 w-4 ${activity.severity === "critical" ? "text-red-400" : "text-yellow-400"}`} />
                       ) : (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5" />
+                        <div className="mt-1.5 h-2 w-2 rounded-full bg-blue-500" />
                       )}
                       <div className="flex-1">
-                        <p className="text-[13px] text-white/80 mb-1">{activity.message}</p>
+                        <p className="mb-1 text-[13px] text-white/80">{activity.message}</p>
                         <p className="text-[11px] text-white/40">{activity.time}</p>
                         {activity.details && (
-                          <p className="text-[11px] text-white/45 mt-2">{activity.details}</p>
+                          <p className="mt-2 text-[11px] text-white/45">{activity.details}</p>
                         )}
                       </div>
                     </div>

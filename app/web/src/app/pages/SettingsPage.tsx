@@ -25,10 +25,13 @@ export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
 
   useEffect(() => {
     if (!accessToken) return;
-    setProfileLoading(true);
-    fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    Promise.resolve()
+      .then(() => {
+        setProfileLoading(true);
+        return fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      })
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();

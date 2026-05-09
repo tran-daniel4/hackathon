@@ -30,37 +30,23 @@ interface Activity {
   repository: string;
 }
 
-interface AnalyzeFinding {
+interface RepoAlert {
   id: string;
-  title: string;
+  type: "update" | "alert" | "task";
+  message: string;
   severity: "low" | "medium" | "high" | "critical";
+  repository: string;
+  analyzed_at: string;
   confidence?: number;
 }
 
-interface AnalyzeResponse {
-  bottlenecks?: {
-    findings?: AnalyzeFinding[];
-  };
-  analysis_debug?: {
-    repo?: {
-      analyzed_at?: string;
-    };
-  };
+interface AlertsResponse {
+  alerts: RepoAlert[];
 }
 
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-function isGitHubUrl(url?: string | null): boolean {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname === "github.com" || parsed.hostname === "www.github.com";
-  } catch {
-    return false;
-  }
-}
 
 function relativeTime(input?: string): string {
   if (!input) return "Just now";
@@ -75,27 +61,8 @@ function relativeTime(input?: string): string {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function severityRank(severity: Activity["severity"]): number {
-  switch (severity) {
-    case "critical":
-      return 0;
-    case "high":
-      return 1;
-    case "medium":
-      return 2;
-    default:
-      return 3;
-  }
-}
-
-function activityTypeForSeverity(severity: Activity["severity"]): Activity["type"] {
-  if (severity === "critical" || severity === "high") return "alert";
-  if (severity === "medium") return "task";
-  return "update";
-}
-
 export function Dashboard() {
-  const { supabase, user, session, loading: authLoading, githubToken } = useAuth();
+  const { supabase, user, session, loading: authLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const fullName = user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? user?.user_metadata?.user_name ?? user?.email ?? "User";
@@ -144,13 +111,7 @@ export function Dashboard() {
   }, [accessToken]);
 
   useEffect(() => {
-    if (!accessToken || repositories.length === 0) {
-      setActivities([]);
-      return;
-    }
-
-    const githubRepos = repositories.filter((repo) => isGitHubUrl(repo.url));
-    if (githubRepos.length === 0) {
+    if (!accessToken) {
       setActivities([]);
       return;
     }
@@ -161,51 +122,22 @@ export function Dashboard() {
       setAlertsLoading(true);
 
       try {
-        const results = await Promise.allSettled(
-          githubRepos.map(async (repo) => {
-            const res = await fetch(`${API_BASE}/analyze`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                repo_url: repo.url,
-                github_token: githubToken ?? undefined,
-              }),
-            });
+        const res = await fetch(`${API_BASE}/repos/alerts?limit=3`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) {
+          throw new Error("Failed to load recent alerts");
+        }
 
-            if (!res.ok) {
-              throw new Error(`Failed to analyze ${repo.name}`);
-            }
-
-            const data = (await res.json()) as AnalyzeResponse;
-            const analyzedAt = data.analysis_debug?.repo?.analyzed_at;
-            return (data.bottlenecks?.findings ?? []).map((finding) => ({
-              id: `${repo.id}-${finding.id}`,
-              type: activityTypeForSeverity(finding.severity),
-              message: finding.title,
-              timestamp: relativeTime(analyzedAt),
-              severity: finding.severity,
-              repository: repo.name,
-              confidence: finding.confidence ?? 0,
-            }));
-          }),
-        );
-
-        const nextActivities = results
-          .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
-          .sort((a, b) => {
-            const severityDiff = severityRank(a.severity) - severityRank(b.severity);
-            if (severityDiff !== 0) return severityDiff;
-            return (b.confidence ?? 0) - (a.confidence ?? 0);
-          })
-          .slice(0, 3)
-          .map(({ id, type, message, timestamp, severity, repository }) => ({
-            id,
-            type,
-            message,
-            timestamp,
-            severity,
-            repository,
-          }));
+        const data = (await res.json()) as AlertsResponse;
+        const nextActivities = (data.alerts ?? []).slice(0, 3).map((alert) => ({
+          id: alert.id,
+          type: alert.type,
+          message: alert.message,
+          timestamp: relativeTime(alert.analyzed_at),
+          severity: alert.severity,
+          repository: alert.repository,
+        }));
 
         if (!cancelled) {
           setActivities(nextActivities);
@@ -225,7 +157,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, githubToken, repositories]);
+  }, [accessToken, repositories.length]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");

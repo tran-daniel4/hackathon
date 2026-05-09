@@ -84,6 +84,41 @@ def clone_github_repo(
     )
 
 
+def get_github_repo_head_sha(
+    repo_url: str,
+    branch: str | None = None,
+    github_token: str | None = None,
+    timeout_seconds: int = 30,
+) -> str | None:
+    if not is_github_repo_url(repo_url):
+        return None
+    if shutil.which("git") is None:
+        return None
+
+    owner, repo_name, inferred_branch = _parse_github_repo_url(repo_url)
+    effective_branch = branch or inferred_branch or "HEAD"
+    clone_url = _build_clone_url(owner, repo_name, github_token)
+
+    try:
+        completed = subprocess.run(
+            ["git", "ls-remote", clone_url, effective_branch],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+
+    if completed.returncode != 0:
+        return None
+
+    first_line = completed.stdout.strip().splitlines()
+    if not first_line:
+        return None
+    return first_line[0].split()[0] if first_line[0].split() else None
+
+
 def load_repo_files(root: Path) -> dict[str, str]:
     files: dict[str, str] = {}
     root = root.resolve()
