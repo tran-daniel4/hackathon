@@ -548,7 +548,6 @@ export function Dashboard() {
                         </div>
                         <p className="text-[13px] text-white/50 mb-3">{repo.url}</p>
                         <div className="flex items-center gap-6 text-[12px] text-white/40">
-                          <span>{repo.componentsCount} components</span>
                           {repo.lastUpdated ? <span>Updated {repo.lastUpdated}</span> : null}
                         </div>
                       </div>

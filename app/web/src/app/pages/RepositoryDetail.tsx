@@ -136,7 +136,6 @@ export function RepositoryDetail({
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const hasStarted = useRef(false);
-  const [componentCount, setComponentCount] = useState(repository.componentsCount);
 
   const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
   const isGitHub = isGitHubUrl(repository.url);
@@ -147,7 +146,6 @@ export function RepositoryDetail({
     }
     const updatedRepository = normalizeRepositorySnapshot(data.repository);
     if (updatedRepository) {
-      setComponentCount(updatedRepository.componentsCount);
       onRepositoryUpdate?.(updatedRepository);
     }
 
@@ -173,10 +171,6 @@ export function RepositoryDetail({
   useEffect(() => {
     setCurrentView(initialView);
   }, [initialView]);
-
-  useEffect(() => {
-    setComponentCount(repository.componentsCount);
-  }, [repository.componentsCount]);
 
   const handleViewChange = useCallback((view: ArchitectureView) => {
     setCurrentView(view);
@@ -330,9 +324,6 @@ export function RepositoryDetail({
             <div className="bg-[#0f0f15]/60 p-6 border border-white/10">
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-[18px]">System Architecture</h2>
-                <div className="text-[11px] uppercase tracking-[0.15em] text-white/50">
-                  {componentCount} Components
-                </div>
               </div>
 
               <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
