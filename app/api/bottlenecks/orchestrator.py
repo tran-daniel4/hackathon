@@ -94,7 +94,7 @@ def run_bottleneck_analysis(
             impact=reviewed.impact if reviewed else finding.impact,
             evidence_ids=finding.evidence_ids,
             recommendations=reviewed.recommendations if reviewed and reviewed.recommendations else finding.recommendations,
-            detected_by=["rule:" + finding.rule_id, *([f"llm_review:deepseek"] if reviewed else [])],
+            detected_by=["rule:" + finding.rule_id, *(["llm_review:deepseek"] if reviewed else [])],
             telemetry_needed_to_confirm=reviewed.telemetry_needed_to_confirm if reviewed and reviewed.telemetry_needed_to_confirm else finding.telemetry_needed_to_confirm,
         ))
 

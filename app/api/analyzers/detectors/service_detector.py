@@ -96,7 +96,7 @@ class ServiceDetector(Analyzer):
 
             # Find the line number for evidence
             svc_line = next(
-                (i + 1 for i, l in enumerate(lines) if re.match(rf"^\s+{re.escape(str(svc_name))}\s*:", l)),
+                (i + 1 for i, line in enumerate(lines) if re.match(rf"^\s+{re.escape(str(svc_name))}\s*:", line)),
                 None,
             )
 

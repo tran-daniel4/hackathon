@@ -162,7 +162,7 @@ def _build_runtime_nodes(scan: RepoScan, graph: ArchGraph) -> list[dict]:
             "id": f"runtime-{_slug(cloud_label)}",
             "label": cloud_label,
             "type": "worker",
-            "description": f"Cloud environment inferred from infrastructure configuration and provider signals.",
+            "description": "Cloud environment inferred from infrastructure configuration and provider signals.",
             "confidence": "inferred",
             "group": "runtime",
         })

@@ -283,7 +283,7 @@ def _external_evidence(node_id: str, node_label: str, scan: RepoScan) -> str:
 def _edge_evidence_str(edge: Edge) -> str:
     if edge.confidence == "inferred":
         indicator = (edge.evidence or {}).get("indicator", "")
-        return f"inferred — no direct dep file match" + (f" (hint: {indicator})" if indicator else "")
+        return "inferred — no direct dep file match" + (f" (hint: {indicator})" if indicator else "")
     ev = edge.evidence or {}
     indicator = ev.get("indicator", "")
     service   = ev.get("service", "")

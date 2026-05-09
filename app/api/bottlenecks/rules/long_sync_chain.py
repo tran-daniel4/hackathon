@@ -8,7 +8,6 @@ _SYNC_KINDS = {"http", "grpc", "sdk"}
 
 
 def detect_long_sync_chain(graph_facts: GraphFacts, repo_signals: RepoSignals) -> list[RuleFinding]:
-    nodes = {node.id: node for node in graph_facts.nodes}
     evidence_by_id = {item.id: item for item in graph_facts.evidence}
     outgoing: dict[str, list] = {}
     for edge in graph_facts.edges:

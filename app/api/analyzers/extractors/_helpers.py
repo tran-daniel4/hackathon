@@ -1,6 +1,5 @@
 """Shared helpers for extractors."""
 import uuid
-from os.path import basename
 
 
 def ev_tmp() -> str:
@@ -88,14 +87,14 @@ def infer_service_name(file_path: str) -> str:
         if parent in _CONTAINER_DIRS or parent in _SOURCE_ROOTS or parent in _LAYER_ROOTS:
             return candidate
 
-    basename = parts[-1]
-    if _extension(basename) in _PROJECT_EXTS and len(parts) >= 2:
+    file_name = parts[-1]
+    if _extension(file_name) in _PROJECT_EXTS and len(parts) >= 2:
         return parts[-2]
 
-    if basename in _PROJECT_ENTRY_FILES and len(parts) >= 2:
+    if file_name in _PROJECT_ENTRY_FILES and len(parts) >= 2:
         return parts[-2]
 
-    if basename in _PROJECT_MARKER_FILES and len(parts) >= 2:
+    if file_name in _PROJECT_MARKER_FILES and len(parts) >= 2:
         parent = parts[-2]
         if not _is_generic_dir(parent):
             return parent

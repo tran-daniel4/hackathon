@@ -102,8 +102,6 @@ def build_graph(scan: RepoScan) -> ArchGraph:
 
     has_queue    = any(f in _QUEUE_FWS    for f in scan.frameworks)
     has_frontend = any(f in _FRONTEND_FWS for f in scan.frameworks)
-    has_backend  = any(f in _BACKEND_FWS  for f in scan.frameworks)
-
     # Split detected services into frontend / backend buckets
     frontend_svcs = [s for s in scan.services if s.lower() in _FRONTEND_DIR_NAMES]
     backend_svcs  = [s for s in scan.services if s.lower() not in _FRONTEND_DIR_NAMES]

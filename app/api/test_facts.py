@@ -53,7 +53,7 @@ def test_orchestrator_smoke():
     for edge in facts.edges:
         assert edge.src in node_ids or True, f"Dangling src: {edge.src}"  # validator handles this
 
-    print(f"\n=== GraphFacts smoke test ===")
+    print("\n=== GraphFacts smoke test ===")
     print(f"Nodes: {len(facts.nodes)}")
     for n in facts.nodes:
         print(f"  [{n.type}] {n.id} ({n.name}) conf={n.confidence} lang={n.language} fw={n.framework}")

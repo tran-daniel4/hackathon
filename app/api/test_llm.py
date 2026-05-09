@@ -38,7 +38,7 @@ cfg = LLMConfig()
 enriched = enrich_issues(issues, graph, root=target, config=cfg)
 
 print(json.dumps([e.model_dump() for e in enriched], indent=2))
-print(f"\n--- Summary ---")
+print("\n--- Summary ---")
 for e in enriched:
     status = "enriched" if e.llm_enriched else "rule-only"
     print(f"  [{e.severity.upper():8}] [{status}]  {e.type}")

@@ -1,4 +1,3 @@
-import re
 import uuid
 from collections import Counter
 
@@ -148,7 +147,6 @@ class RepoDetector(Analyzer):
             fw_needle = frameworks[0][2] if frameworks else None
             if dominant_fw and fw_path:
                 # Find the matching line for better evidence
-                excerpt = fw_needle if fw_needle else dominant_fw
                 if fw_needle:
                     content = file_index.get_content(fw_path) or ""
                     for lineno, line in enumerate(content.splitlines(), 1):
@@ -250,7 +248,7 @@ class RepoDetector(Analyzer):
             parts = _parts(path)
             if len(parts) <= 2 and base.startswith("readme"):
                 content = file_index.get_content(path) or ""
-                lines = [l for l in content.splitlines() if not l.strip().startswith("#")]
-                prose = " ".join(" ".join(l.split()) for l in lines if l.strip())
+                lines = [line for line in content.splitlines() if not line.strip().startswith("#")]
+                prose = " ".join(" ".join(line.split()) for line in lines if line.strip())
                 return prose[:600]
         return ""

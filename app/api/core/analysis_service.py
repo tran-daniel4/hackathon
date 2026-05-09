@@ -14,7 +14,7 @@ from graph.compat import graph_facts_to_arch_graph
 from pipeline.graph_builder import ArchGraph, Edge, Node
 from pipeline.llm_view_generator import generate_diagrams_hybrid
 from pipeline.llm_wrapper import LLMConfig
-from pipeline.scanner import RepoScan, scan_files, scan_repo
+from pipeline.scanner import scan_files, scan_repo
 
 
 @dataclass

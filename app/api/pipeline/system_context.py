@@ -206,7 +206,7 @@ def _build_identity_nodes(scan: RepoScan, externals_by_id: dict[str, object]) ->
         candidates[node_id] = {
             "id": node_id,
             "label": identity_label,
-            "description": f"Identity provider used for authentication and sign-in flows.",
+            "description": "Identity provider used for authentication and sign-in flows.",
             "edge_label": "Authentication / OIDC",
             "confidence": "verified",
         }
@@ -219,7 +219,7 @@ def _build_identity_nodes(scan: RepoScan, externals_by_id: dict[str, object]) ->
         candidates.setdefault(node_id, {
             "id": node_id,
             "label": label,
-            "description": f"Identity service inferred from authentication configuration.",
+            "description": "Identity service inferred from authentication configuration.",
             "edge_label": "Authentication / OIDC",
             "confidence": "inferred",
         })
@@ -233,7 +233,7 @@ def _build_identity_nodes(scan: RepoScan, externals_by_id: dict[str, object]) ->
         candidates[node_id] = {
             "id": node_id,
             "label": identity_label,
-            "description": f"Identity provider integrated with the application.",
+            "description": "Identity provider integrated with the application.",
             "edge_label": "Authentication / OIDC",
             "confidence": "verified",
         }
@@ -282,7 +282,7 @@ def _build_partner_nodes(
         partner_nodes.append({
             "id": partner_id,
             "label": normalized,
-            "description": f"Provider inferred from configuration and environment variables.",
+            "description": "Provider inferred from configuration and environment variables.",
             "confidence": "inferred",
             "_score": 1,
         })

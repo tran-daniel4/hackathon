@@ -1,12 +1,11 @@
 import re
-import uuid
 from dataclasses import dataclass
 from typing import Optional
 
 from analyzers.base import Analyzer
 from analyzers.file_index import FileIndex
-from analyzers.extractors._helpers import ev_tmp, file_basename, file_parts, infer_service_id
-from graph.models import GraphFactPatch, NodeFact, ApiFact, Evidence, make_node_id
+from analyzers.extractors._helpers import ev_tmp, file_basename, infer_service_id
+from graph.models import GraphFactPatch, NodeFact, ApiFact, Evidence
 
 
 @dataclass

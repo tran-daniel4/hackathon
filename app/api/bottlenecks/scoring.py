@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bottlenecks.models import ConfidenceLabel, FinalFinding, RepoSignals, RuleFinding, Severity
+from bottlenecks.models import ConfidenceLabel, FinalFinding, RepoSignals, Severity
 
 _SEVERITY_WEIGHT: dict[Severity, float] = {
     "low": 0.25,

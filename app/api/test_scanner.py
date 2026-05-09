@@ -14,7 +14,7 @@ print(f"Scanning: {target}\n")
 result = scan_repo(target)
 
 print(json.dumps(result.model_dump(), indent=2))
-print(f"\n--- Summary ---")
+print("\n--- Summary ---")
 print(f"Services:       {result.services}")
 print(f"Languages:      {result.languages}")
 print(f"Frameworks:     {result.frameworks}")
