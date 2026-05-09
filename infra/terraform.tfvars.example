@@ -8,3 +8,4 @@ supabase_publishable_key      = "your_supabase_publishable_key"
 supabase_database_url         = "postgresql+asyncpg://postgres.your-project-ref:your-db-password@aws-0-your-region.pooler.supabase.com:5432/postgres"
 supabase_alembic_database_url = "postgresql+asyncpg://postgres.your-project-ref:your-db-password@aws-0-your-region.pooler.supabase.com:5432/postgres"
 allowed_origins               = "http://localhost:3000"
+ssh_allowed_ips = ["YOUR.IP.HERE/32"]

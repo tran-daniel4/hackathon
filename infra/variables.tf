@@ -55,6 +55,12 @@ variable "allowed_origins" {
   default     = "http://localhost:3000"
 }
 
+variable "ssh_allowed_ips" {
+  description = "IPs allowed to SSH into the droplet. Restrict to your own IP(s) in production."
+  type        = list(string)
+  default     = ["0.0.0.0/0", "::/0"]
+}
+
 variable "ollama_model" {
   description = "Ollama model tag to pull on the droplet (used by the LLM pipeline)"
   type        = string
