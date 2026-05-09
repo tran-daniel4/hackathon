@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Search, Plus, GitBranch, Trash2, Edit3, Bell, ChevronRight, LayoutGrid, Code, Settings as SettingsIcon, Home, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { AddRepositoryModal } from "@/components/AddRepositoryModal";
+import { EditRepositoryModal } from "@/components/EditRepositoryModal";
 import { ActivityPage } from "./ActivityPage";
 import { RepositoryDetail } from "./RepositoryDetail";
 import { SettingsPage } from "./SettingsPage";
@@ -206,6 +207,7 @@ export function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [perspective, setPerspective] = useState<ViewPerspective>("component");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [repoBeingEdited, setRepoBeingEdited] = useState<Repository | null>(null);
   const [subView, setSubView] = useState<"repository" | "settings" | null>(null);
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
 
@@ -254,12 +256,7 @@ export function Dashboard() {
     });
   };
 
-  const handleEditRepository = async (repo: Repository) => {
-    const nextName = window.prompt("Rename repository", repo.name)?.trim();
-    if (!nextName || nextName === repo.name) {
-      return;
-    }
-
+  const saveRepositoryName = async (repo: Repository, nextName: string) => {
     try {
       const res = await fetch(`${API_BASE}/repos/${repo.id}`, {
         method: "PATCH",
@@ -323,6 +320,16 @@ export function Dashboard() {
       <AddRepositoryModal
         onClose={() => setShowAddModal(false)}
         onAdd={handleAddRepository}
+      />
+    )}
+    {repoBeingEdited && (
+      <EditRepositoryModal
+        repository={repoBeingEdited}
+        onClose={() => setRepoBeingEdited(null)}
+        onSave={async (name) => {
+          await saveRepositoryName(repoBeingEdited, name);
+          setRepoBeingEdited(null);
+        }}
       />
     )}
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -556,7 +563,7 @@ export function Dashboard() {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={(e) => { e.stopPropagation(); handleEditRepository(repo); }}
+                          onClick={(e) => { e.stopPropagation(); setRepoBeingEdited(repo); }}
                           className="p-2 hover:bg-white/10 rounded transition-colors"
                         >
                           <Edit3 className="w-4 h-4 text-white/60" />
