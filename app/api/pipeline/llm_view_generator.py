@@ -18,7 +18,7 @@ from pipeline.diagram_generator import (
     _TYPE_LAYER, _TYPE_GROUP,
     generate_diagrams,
 )
-from pipeline.llm_wrapper import LLMConfig, _call_ollama, _call_openai_compat
+from pipeline.llm_wrapper import LLMConfig, _call_claude, _call_ollama, _call_openai_compat
 from pipeline.conceptual import build_conceptual_spec
 from pipeline.operational import build_operational_spec
 from pipeline.system_context import build_system_context_spec
@@ -100,6 +100,8 @@ async def _generate_view(
 
 
 async def _call_llm_async(prompt: str, cfg: LLMConfig) -> str:
+    if cfg.provider == "claude":
+        return await asyncio.to_thread(_call_claude, prompt)
     if cfg.provider == "ollama":
         return await asyncio.to_thread(_call_ollama, prompt, cfg)
     return await asyncio.to_thread(_call_openai_compat, prompt, cfg)

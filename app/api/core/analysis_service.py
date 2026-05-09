@@ -44,7 +44,7 @@ async def execute_analysis(
     graph = graph_facts_to_arch_graph(facts)
     scan = _align_scan_with_graph(source["scan"], graph)
 
-    cfg = LLMConfig(base_url=settings.ollama_base_url)
+    cfg = LLMConfig()
     bottleneck_result, legacy_report = run_bottleneck_analysis(
         file_index=file_index,
         graph_facts=facts,
