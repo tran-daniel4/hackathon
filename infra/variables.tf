@@ -13,3 +13,56 @@ variable "do_project_name" {
   description = "Name of the existing DigitalOcean project to assign the droplet to"
   type        = string
 }
+
+variable "repo_url" {
+  description = "Git repository URL to deploy onto the droplet"
+  type        = string
+}
+
+variable "repo_branch" {
+  description = "Git branch to deploy onto the droplet"
+  type        = string
+  default     = "main"
+}
+
+variable "supabase_url" {
+  description = "Supabase project URL"
+  type        = string
+  sensitive   = true
+}
+
+variable "supabase_publishable_key" {
+  description = "Supabase publishable key for the frontend"
+  type        = string
+  sensitive   = true
+}
+
+variable "supabase_database_url" {
+  description = "Supabase Postgres connection string for the API"
+  type        = string
+  sensitive   = true
+}
+
+variable "supabase_alembic_database_url" {
+  description = "Supabase Postgres connection string used by Alembic"
+  type        = string
+  sensitive   = true
+}
+
+variable "allowed_origins" {
+  description = "Comma-separated list of frontend origins allowed by the API (CORS)"
+  type        = string
+  default     = "http://localhost:3000"
+}
+
+variable "ssh_allowed_ips" {
+  description = "IPs allowed to SSH into the droplet. Restrict to your own IP(s) in production."
+  type        = list(string)
+  default     = ["0.0.0.0/0", "::/0"]
+}
+
+variable "ollama_model" {
+  description = "Ollama model tag to pull on the droplet (used by the LLM pipeline)"
+  type        = string
+  default     = "deepseek-coder:6.7b-instruct-q4_K_M"
+}

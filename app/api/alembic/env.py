@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 from db.base import Base
-import models.user  # noqa: F401 — registers User with Base.metadata
+import models.profile  # noqa: F401 - registers Profile with Base.metadata
 
 # override=True ensures .env values win over any stale shell environment variables
 load_dotenv(find_dotenv(), override=True)

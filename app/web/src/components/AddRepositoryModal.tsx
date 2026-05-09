@@ -2,16 +2,16 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
 import { Check, X, FolderOpen, Star } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { toast } from "sonner";
+import { useAuth } from "@/components/AuthProvider";
 
 interface Repository {
   id: string;
   name: string;
   url: string;
-  lastUpdated: string;
+  lastUpdated?: string | null;
   componentsCount: number;
 }
 
@@ -33,13 +33,79 @@ interface AddRepositoryModalProps {
   onAdd: (repo: Repository) => void;
 }
 
+interface AnalysisSyncResponse {
+  repository?: {
+    id: string;
+    name: string;
+    url: string;
+    componentsCount: number;
+    lastUpdated?: string;
+  };
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+async function saveRepo(
+  name: string,
+  url: string,
+  accessToken: string,
+): Promise<Repository> {
+  const res = await fetch(`${API_BASE}/repos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ name, url }),
+  });
+  if (!res.ok) throw new Error(`${res.status}`);
+  const data = await res.json();
+  const parsedDate = data.lastUpdated ? new Date(data.lastUpdated) : null;
+  return {
+    id: String(data.id),
+    name: data.name,
+    url: data.url,
+    lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
+    componentsCount: data.componentsCount ?? 0,
+  };
+}
+
+async function syncRepoAnalysis(
+  repoId: string,
+  accessToken: string,
+  githubToken: string,
+): Promise<Repository | null> {
+  const res = await fetch(`${API_BASE}/repos/${repoId}/analysis/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      github_token: githubToken,
+    }),
+  });
+  if (!res.ok) {
+    return null;
+  }
+  const data = (await res.json()) as AnalysisSyncResponse;
+  if (!data.repository) {
+    return null;
+  }
+  const parsedDate = data.repository.lastUpdated ? new Date(data.repository.lastUpdated) : null;
+  return {
+    id: String(data.repository.id),
+    name: data.repository.name,
+    url: data.repository.url,
+    lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
+    componentsCount: data.repository.componentsCount ?? 0,
+  };
+}
+
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
-  const { data: session } = useSession();
-  const githubToken = (session as typeof session & { githubAccessToken?: string })?.githubAccessToken;
+  const { session, githubToken } = useAuth();
   const hasGithub = !!githubToken;
 
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -80,33 +146,50 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
     });
   };
 
-  const handleConfirm = () => {
-    filteredRepos
-      .filter((r) => selectedIds.has(r.id))
-      .forEach((repo) => {
-        onAdd({
-          id: String(repo.id),
-          name: repo.name,
-          url: repo.full_name,
-          lastUpdated: new Date(repo.pushed_at).toLocaleDateString(),
-          componentsCount: 0,
-        });
-      });
-    onClose();
+  const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
+
+  const handleConfirm = async () => {
+    const selected = filteredRepos.filter((r) => selectedIds.has(r.id));
+    if (selected.length === 0) return;
+    setIsSaving(true);
+    try {
+      for (const repo of selected) {
+        const saved = await saveRepo(repo.name, repo.html_url, accessToken);
+        onAdd(saved);
+        if (githubToken) {
+          void syncRepoAnalysis(saved.id, accessToken, githubToken).then((updated) => {
+            if (updated) {
+              onAdd(updated);
+            }
+          });
+        }
+      }
+      onClose();
+    } catch (err) {
+      const status = err instanceof Error ? err.message : "";
+      if (status === "401") {
+        toast.error("Session expired — please sign in again");
+      } else if (status === "500") {
+        toast.error("Server error — check that migrations have run on the droplet");
+      } else {
+        toast.error("Failed to save repositories");
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const folderName = files[0].webkitRelativePath.split("/")[0];
-    onAdd({
-      id: `local-${Date.now()}`,
-      name: folderName,
-      url: folderName,
-      lastUpdated: "just now",
-      componentsCount: 0,
-    });
-    onClose();
+    try {
+      const saved = await saveRepo(folderName, folderName, accessToken);
+      onAdd(saved);
+      onClose();
+    } catch {
+      toast.error("Failed to save repository");
+    }
   };
 
   const filteredRepos = githubRepos.filter(
@@ -280,12 +363,13 @@ r.full_name.toLowerCase().includes(search.toLowerCase())
                     Cancel
                   </button>
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={isSaving ? {} : { scale: 1.02 }}
+                    whileTap={isSaving ? {} : { scale: 0.98 }}
                     onClick={handleConfirm}
-                    className="px-5 py-2.5 bg-white text-black hover:bg-white/90 transition-colors text-[11px] uppercase tracking-[0.15em]"
+                    disabled={isSaving}
+                    className="px-5 py-2.5 bg-white text-black hover:bg-white/90 transition-colors text-[11px] uppercase tracking-[0.15em] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Add Selected
+                    {isSaving ? "Adding…" : "Add Selected"}
                   </motion.button>
                 </div>
               </motion.div>

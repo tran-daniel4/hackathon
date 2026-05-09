@@ -1,34 +1,74 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Bell, Shield, Users, Mail } from "lucide-react";
-import { FaGithub } from "react-icons/fa";
 import { toast } from "sonner";
+import { useAuth } from "@/components/AuthProvider";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 interface SettingsPageProps {
   onBack: () => void;
 }
 
-export function SettingsPage({ onBack }: SettingsPageProps) {
+export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
+  void _onBack;
+  const { session } = useAuth();
+  const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
+
   const [activeTab, setActiveTab] = useState<"profile" | "notifications" | "teams" | "security">("profile");
 
-  const [profileData, setProfileData] = useState({
-    name: "",
-    email: "",
-    github: "",
-    company: "",
-  });
+  const [profileData, setProfileData] = useState({ name: "", email: "" });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    Promise.resolve()
+      .then(() => {
+        setProfileLoading(true);
+        return fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data: { full_name: string; email: string }) => {
+        setProfileData({ name: data.full_name, email: data.email });
+      })
+      .catch(() => toast.error("Failed to load profile"))
+      .finally(() => setProfileLoading(false));
+  }, [accessToken]);
 
   const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
     teamUpdates: true,
     systemAlerts: true,
-    weeklyDigest: false,
   });
 
   const handleSaveProfile = () => {
-    toast.success("Profile updated successfully");
+    if (!profileData.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    setProfileSaving(true);
+    fetch(`${API_BASE}/auth/me`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name: profileData.name.trim() }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data: { full_name: string; email: string }) => {
+        setProfileData({ name: data.full_name, email: data.email });
+        toast.success("Profile updated successfully");
+      })
+      .catch(() => toast.error("Failed to update profile"))
+      .finally(() => setProfileSaving(false));
   };
 
   const handleSaveNotifications = () => {
@@ -75,74 +115,51 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
               className="border border-white/10 bg-[#0f0f15]/60 p-8"
             >
               <h2 className="text-[20px] mb-6">Profile Information</h2>
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-white/60 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={profileData.name}
-                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none transition-colors text-[14px] text-white placeholder:text-white/30"
-                    placeholder="John Doe"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-white/60 mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-                    <input
-                      type="email"
-                      value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                      className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none transition-colors text-[14px] text-white placeholder:text-white/30"
-                      placeholder="you@company.com"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-white/60 mb-2">
-                    GitHub Username
-                  </label>
-                  <div className="relative">
-                    <FaGithub className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+              {profileLoading ? (
+                <p className="text-[13px] text-white/30">Loading…</p>
+              ) : (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-white/60 mb-2">
+                      Full Name
+                    </label>
                     <input
                       type="text"
-                      value={profileData.github}
-                      onChange={(e) => setProfileData({ ...profileData, github: e.target.value })}
-                      className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none transition-colors text-[14px] text-white placeholder:text-white/30"
-                      placeholder="johndoe"
+                      value={profileData.name}
+                      onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none transition-colors text-[14px] text-white placeholder:text-white/30"
+                      placeholder="John Doe"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-white/60 mb-2">
-                    Company
-                  </label>
-                  <input
-                    type="text"
-                    value={profileData.company}
-                    onChange={(e) => setProfileData({ ...profileData, company: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 focus:border-white/30 focus:outline-none transition-colors text-[14px] text-white placeholder:text-white/30"
-                    placeholder="Acme Inc."
-                  />
-                </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-white/60 mb-2">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                      <input
+                        type="email"
+                        value={profileData.email}
+                        readOnly
+                        className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 text-[14px] text-white/50 cursor-default select-none"
+                      />
+                    </div>
+                    <p className="text-[11px] text-white/30 mt-1">Email is managed by your auth provider and cannot be changed here.</p>
+                  </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSaveProfile}
-                  className="px-8 py-3 bg-white text-black uppercase text-[11px] tracking-[0.15em] hover:bg-white/90 transition-colors"
-                >
-                  Save Changes
-                </motion.button>
-              </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSaveProfile}
+                    disabled={profileSaving}
+                    className="px-8 py-3 bg-white text-black uppercase text-[11px] tracking-[0.15em] hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {profileSaving ? "Saving…" : "Save Changes"}
+                  </motion.button>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -161,10 +178,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                         {key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
                       </p>
                       <p className="text-[12px] text-white/50">
-                        {key === "emailNotifications" && "Receive email notifications for updates"}
                         {key === "teamUpdates" && "Get notified when team members make changes"}
                         {key === "systemAlerts" && "Receive alerts for system issues"}
-                        {key === "weeklyDigest" && "Weekly summary of activity"}
                       </p>
                     </div>
                     <button
@@ -198,10 +213,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
               className="border border-white/10 bg-[#0f0f15]/60 p-8"
             >
               <h2 className="text-[20px] mb-2">Team Settings</h2>
-              <p className="text-[13px] text-white/60 mb-6">Manage your teams and collaborators</p>
-              <p className="text-[14px] text-white/70">
-                Team management features are coming soon. You will be able to create teams, invite members by email or GitHub username, and manage repository access.
-              </p>
+              <p className="text-[14px] text-white/70">Team management features are coming soon.</p>
             </motion.div>
           )}
 

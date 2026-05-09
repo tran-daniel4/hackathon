@@ -2,87 +2,34 @@
 
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { WaveBackground } from "@/components/WaveBackground";
 import { LoginPage } from "./pages/login";
 import { SignUpPage } from "./pages/signup";
-import { Dashboard } from "./pages/dashboard";
-
-function getValidToken(key: string): string | null {
-  const token = localStorage.getItem(key);
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.exp * 1000 > Date.now() ? token : null;
-  } catch {
-    return null;
-  }
-}
-
-function clearTokens() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-}
+import { useAuth } from "@/components/AuthProvider";
 
 export default function Home() {
-  const { status: sessionStatus } = useSession();
+  const { loading, session } = useAuth();
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isCheckingRefresh, setIsCheckingRefresh] = useState(false);
-
-  // Runs after mount so SSR and initial client render are always identical (both false).
-  // setState is deferred into a .then() callback to satisfy react-hooks/set-state-in-effect.
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      if (getValidToken("access_token")) {
-        setIsLoggedIn(true);
-      } else if (localStorage.getItem("refresh_token")) {
-        setIsCheckingRefresh(true);
-      }
-    });
-  }, []);
 
   useEffect(() => {
-    if (!isCheckingRefresh) return;
-    const refreshToken = localStorage.getItem("refresh_token");
+    if (!loading && session) {
+      router.replace("/diagrams");
+    }
+  }, [loading, router, session]);
 
-    fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => {
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
-        setIsLoggedIn(true);
-      })
-      .catch(() => clearTokens())
-      .finally(() => setIsCheckingRefresh(false));
-  }, [isCheckingRefresh]);
-
-  if (sessionStatus === "loading" || isCheckingRefresh) return null;
-
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    setIsLoggedIn(false);
-    signOut({ redirect: false });
-  };
-
-  if (sessionStatus === "authenticated" || isLoggedIn) {
-    return <Dashboard onLogout={handleLogout} />;
+  if (loading) {
+    return null;
   }
 
   if (showLogin) {
     return (
       <LoginPage
         onClose={() => setShowLogin(false)}
-        onLogin={() => { setShowLogin(false); setIsLoggedIn(true); }}
+        onLogin={() => { setShowLogin(false); router.replace("/diagrams"); }}
         onSwitchToSignUp={() => {
           setShowLogin(false);
           setShowSignUp(true);
@@ -95,7 +42,7 @@ export default function Home() {
     return (
       <SignUpPage
         onClose={() => setShowSignUp(false)}
-        onSignUp={() => { setShowSignUp(false); setIsLoggedIn(true); }}
+        onSignUp={() => { setShowSignUp(false); }}
         onSwitchToLogin={() => {
           setShowSignUp(false);
           setShowLogin(true);
@@ -110,11 +57,11 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex justify-between items-center mix-blend-difference">
         <div className="tracking-tight">DynoDocs</div>
         <div className="flex items-center gap-12">
-          <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
+          {/* <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
             <button className="hover:opacity-100 transition-opacity">Platform</button>
             <button className="hover:opacity-100 transition-opacity">Docs</button>
             <button className="hover:opacity-100 transition-opacity">Demo</button>
-          </div>
+          </div> */}
           <button
             onClick={() => setShowLogin(true)}
             className="px-6 py-2 border border-white/20 bg-white/5 uppercase text-[11px] tracking-[0.15em] hover:bg-white/10 transition-colors"
@@ -151,7 +98,7 @@ export default function Home() {
 
             <p className="text-[clamp(1.1rem,2vw,1.5rem)] opacity-60 max-w-[600px] mb-16 leading-relaxed">
               Turn scattered architecture knowledge into a living visual map.
-              Diagnose production issues in minutes, not hours.
+              Surface static architecture risks and system flow in minutes, not hours.
             </p>
             <button
               onClick={() => setShowLogin(true)}
@@ -164,7 +111,7 @@ export default function Home() {
         </div>
 
         {/* Scroll Indicator */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 2, duration: 1 }}
@@ -172,10 +119,12 @@ export default function Home() {
         >
           <div className="text-[9px] uppercase tracking-[0.2em]">Scroll</div>
           <div className="w-[1px] h-12 bg-white animate-pulse" />
-        </motion.div>
+        </motion.div> */}
       </section>
 
       {/* Feature Grid - Modular Panels */}
+      {false && (
+        <>
       <section className="px-8 md:px-16 py-32 max-w-[1600px] mx-auto">
         <motion.div
           initial={{ opacity: 0 }}
@@ -202,7 +151,7 @@ export default function Home() {
               {
                 num: "03",
                 title: "Visual Diagnosis",
-                desc: "Bottlenecks and failures overlaid directly on the map. See database slowdowns, overloaded services, and queue congestion instantly."
+                desc: "Static bottleneck risk overlays appear directly on the map. Spot possible database hotspots, fragile service paths, and queue reliability gaps before they bite you."
               },
             ].map((item, idx) => (
               <motion.div
@@ -376,6 +325,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
+        </>
+      )}
     </div>
   );
 }
