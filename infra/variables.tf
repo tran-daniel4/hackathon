@@ -61,8 +61,8 @@ variable "ssh_allowed_ips" {
   default     = ["0.0.0.0/0", "::/0"]
 }
 
-variable "ollama_model" {
-  description = "Ollama model tag to pull on the droplet (used by the LLM pipeline)"
+variable "anthropic_api_key" {
+  description = "Anthropic API key for the Claude LLM pipeline"
   type        = string
-  default     = "deepseek-coder:6.7b-instruct-q4_K_M"
+  sensitive   = true
 }

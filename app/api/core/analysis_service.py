@@ -14,7 +14,7 @@ from graph.compat import graph_facts_to_arch_graph
 from pipeline.graph_builder import ArchGraph, Edge, Node
 from pipeline.llm_view_generator import generate_diagrams_hybrid
 from pipeline.llm_wrapper import LLMConfig
-from pipeline.scanner import scan_files, scan_repo
+from pipeline.scanner import _SKIP_EXTENSIONS, _SKIP_FILENAMES, _is_test_like_path, scan_files, scan_repo
 
 
 @dataclass
@@ -42,6 +42,7 @@ async def execute_analysis(
     file_index = FileIndex(source["files"])
     facts = AnalyzerOrchestrator().run(file_index, repo_meta=source["repo_meta"])
     graph = graph_facts_to_arch_graph(facts)
+    scan = _align_scan_with_graph(source["scan"], graph)
 
     cfg = LLMConfig(base_url=settings.ollama_base_url)
     bottleneck_result, legacy_report = run_bottleneck_analysis(
@@ -49,7 +50,7 @@ async def execute_analysis(
         graph_facts=facts,
         config=cfg,
     )
-    output = await generate_diagrams_hybrid(source["scan"], graph, legacy_report, config=cfg)
+    output = await generate_diagrams_hybrid(scan, graph, legacy_report, config=cfg)
 
     component = next((view for view in output.views if view.id == "component"), output.views[0])
     component.annotations = [
@@ -65,7 +66,7 @@ async def execute_analysis(
             node.severity = severity_by_node[node.id]
 
     payload = {
-        "repo_analysis": source["scan"].model_dump(),
+        "repo_analysis": scan.model_dump(),
         "system_design": graph.model_dump(),
         "bottlenecks": bottleneck_result.report.model_dump(),
         "diagram": {
@@ -80,8 +81,8 @@ async def execute_analysis(
             "repo": facts.repo.model_dump(),
             "summary": {
                 "input_file_count": len(source["files"]),
-                "service_count": len(source["scan"].services),
-                "framework_count": len(source["scan"].frameworks),
+                "service_count": len(scan.services),
+                "framework_count": len(scan.frameworks),
                 "api_count": len(facts.apis),
                 "node_count": len(facts.nodes),
                 "edge_count": len(facts.edges),
@@ -156,11 +157,16 @@ def _prepare_analysis_source(
     if not files:
         raise ValueError("Provide either uploaded files or a GitHub repository URL")
 
+    sanitized_files = {
+        path: content
+        for path, content in files.items()
+        if _should_keep_uploaded_file(path)
+    }
     repo_name = _infer_uploaded_repo_name(files)
     return {
         "source": "upload",
-        "files": files,
-        "scan": scan_files(files),
+        "files": sanitized_files,
+        "scan": scan_files(sanitized_files),
         "repo_meta": {
             "name": repo_name,
             "analyzed_at": analyzed_at,
@@ -173,6 +179,18 @@ def _infer_uploaded_repo_name(files: dict[str, str]) -> str:
         return "uploaded"
     first_path = next(iter(files)).replace("\\", "/")
     return first_path.split("/", 1)[0] if "/" in first_path else "uploaded"
+
+
+def _should_keep_uploaded_file(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    filename = normalized.rsplit("/", 1)[-1].lower()
+    if filename in _SKIP_FILENAMES:
+        return False
+    if _is_test_like_path(normalized):
+        return False
+    if any(normalized.lower().endswith(ext) for ext in _SKIP_EXTENSIONS):
+        return False
+    return True
 
 
 def _build_request_flow_annotations(
@@ -325,3 +343,23 @@ def _flow_label(route: Any, has_cache_miss: bool, has_external_call: bool) -> st
     if has_external_call:
         return f"{base} external call path"
     return f"{base} request path"
+
+
+def _align_scan_with_graph(scan: Any, graph: ArchGraph) -> Any:
+    normalized = scan.model_copy(deep=True)
+    normalized.services = [
+        node.label
+        for node in graph.nodes
+        if node.type in {"service", "frontend"}
+    ]
+    normalized.databases = [
+        node.label
+        for node in graph.nodes
+        if node.type in {"database", "cache", "queue"}
+    ]
+    normalized.external_calls = [
+        node.label
+        for node in graph.nodes
+        if node.type == "external_api"
+    ]
+    return normalized

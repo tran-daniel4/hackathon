@@ -82,6 +82,17 @@ _SKIP_EXTENSIONS = {
     ".pyc", ".class", ".jar", ".war", ".lock", ".bin", ".db",
 }
 
+_SKIP_FILENAMES = {
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lock",
+    "bun.lockb",
+    "poetry.lock",
+    "uv.lock",
+}
+
 _MAX_FILE_BYTES = 200 * 1024   # 200 KB per file
 _MAX_DEP_BYTES  = 5  * 1024    # 5 KB per dependency file stored in output
 _MAX_INFRA_BYTES = 3 * 1024    # 3 KB per infra file stored in output
@@ -287,8 +298,6 @@ def _looks_like_project_dir(name: str) -> bool:
 
 # ── Env var provider patterns (new) ───────────────────────────────────────────
 
-_ENV_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".yml", ".yaml", ".toml"})
-
 _ENV_VAR_PROVIDERS: list[tuple[str, re.Pattern]] = [
     ("Stripe",     re.compile(r'\b(STRIPE_[A-Z_]+)\b')),
     ("Twilio",     re.compile(r'\b(TWILIO_[A-Z_]+)\b')),
@@ -309,6 +318,21 @@ _ENV_VAR_PROVIDERS: list[tuple[str, re.Pattern]] = [
     ("Datadog",    re.compile(r'\b(DD_[A-Z_]+|DATADOG_[A-Z_]+)\b')),
     ("Keycloak",   re.compile(r'\b(KEYCLOAK_[A-Z_]+)\b')),
 ]
+
+_CONFIG_SIGNAL_FILENAMES = frozenset({
+    "application.yml",
+    "application.yaml",
+    "application.properties",
+    "appsettings.json",
+    "appsettings.development.json",
+    "appsettings.production.json",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "compose.yml",
+    "compose.yaml",
+})
+
+_TEST_DIR_NAMES = frozenset({"test", "tests", "__tests__", "spec", "specs", "fixtures", "mocks"})
 
 # ── HTTP client call patterns (new) ───────────────────────────────────────────
 
@@ -424,9 +448,13 @@ def scan_repo(root: str | Path) -> RepoScan:
         ]
         for filename in filenames:
             fpath = Path(dirpath) / filename
+            if filename.lower() in _SKIP_FILENAMES:
+                continue
             if fpath.suffix.lower() in _SKIP_EXTENSIONS:
                 continue
             rel = str(fpath.relative_to(root))
+            if _is_test_like_path(rel):
+                continue
             file_tree.append(rel)
             try:
                 if fpath.stat().st_size > _MAX_FILE_BYTES:
@@ -477,7 +505,12 @@ def scan_files(uploaded: dict[str, str]) -> RepoScan:
         if not norm.startswith(root_name + "/"):
             norm = root_name + "/" + norm
         fpath = Path(norm)
+        if fpath.name.lower() in _SKIP_FILENAMES:
+            continue
         if fpath.suffix.lower() in _SKIP_EXTENSIONS:
+            continue
+        rel = str(fpath).split("/", 1)[1] if "/" in str(fpath) else str(fpath)
+        if _is_test_like_path(rel):
             continue
         files[fpath] = content[:_MAX_FILE_BYTES]
 
@@ -732,7 +765,7 @@ def _detect_spring_apis(
 
 
 def _detect_databases(files: dict[Path, str]) -> list[str]:
-    corpus = _build_corpus(files)
+    corpus = _build_signal_corpus(files, include_dependency_manifests=False)
     seen: set[str] = set()
     results: list[str] = []
     for db, indicators in _DATABASES:
@@ -745,12 +778,20 @@ def _detect_databases(files: dict[Path, str]) -> list[str]:
 
 
 def _detect_external_apis(files: dict[Path, str]) -> list[str]:
-    corpus = _build_corpus(files)
+    corpus = _build_signal_corpus(files, include_dependency_manifests=False)
     return [api for api, indicators in _EXTERNAL_APIS if any(i in corpus for i in indicators)]
 
 
 def _build_corpus(files: dict[Path, str]) -> str:
     return "\n".join(files.values()).lower()
+
+
+def _build_signal_corpus(files: dict[Path, str], *, include_dependency_manifests: bool) -> str:
+    parts: list[str] = []
+    for path, content in files.items():
+        if _should_consider_signal_file(path, include_dependency_manifests=include_dependency_manifests):
+            parts.append(content.lower())
+    return "\n".join(parts)
 
 
 # ── New detection helpers ──────────────────────────────────────────────────────
@@ -768,8 +809,9 @@ def _detect_env_vars(root: Path, files: dict[Path, str]) -> list[EnvVarHit]:
 
     for path, content in files.items():
         fname = path.name.lower()
-        ext   = path.suffix.lower()
-        if not (fname.startswith(".env") or ext in _ENV_EXTS):
+        if not _is_env_config_file(path):
+            continue
+        if _is_template_env_file(fname):
             continue
         rel   = _rel(path, root)
         lines = content.splitlines()
@@ -892,3 +934,60 @@ def _extract_readme_summary(files: dict[Path, str], root: Path) -> str:
             prose = " ".join(" ".join(line.split()) for line in lines if line.strip())
             return prose[:600]
     return ""
+
+
+def _is_template_env_file(filename: str) -> bool:
+    lower = filename.lower()
+    return lower.startswith(".env.") and any(marker in lower for marker in ("example", "sample", "template"))
+
+
+def _should_consider_signal_file(path: Path, *, include_dependency_manifests: bool) -> bool:
+    name = path.name.lower()
+    ext = path.suffix.lower()
+
+    if name in _SKIP_FILENAMES or _is_template_env_file(name) or _is_test_like_path(str(path)):
+        return False
+
+    if include_dependency_manifests and (name in _DEP_FILENAMES or ext in {".csproj", ".fsproj", ".vbproj"}):
+        return True
+
+    if name in _DEP_FILENAMES or ext in {".csproj", ".fsproj", ".vbproj"}:
+        return False
+
+    if name.startswith(".env"):
+        return True
+
+    if name in _CONFIG_SIGNAL_FILENAMES:
+        return True
+
+    return ext in {".py", ".ts", ".js", ".jsx", ".tsx", ".java", ".go", ".rb", ".php", ".cs", ".json", ".yaml", ".yml", ".toml", ".properties"}
+
+
+def _is_env_config_file(path: Path) -> bool:
+    name = path.name.lower()
+    if name.startswith(".env"):
+        return True
+    if name in _CONFIG_SIGNAL_FILENAMES:
+        return True
+    return any(token in name for token in ("config", "settings", "application")) and path.suffix.lower() in {".json", ".yaml", ".yml", ".toml", ".properties"}
+
+
+def _is_test_like_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").lower()
+    parts = [part for part in normalized.split("/") if part]
+    if any(part in _TEST_DIR_NAMES for part in parts[:-1]):
+        return True
+
+    filename = parts[-1] if parts else normalized
+    return (
+        filename.startswith("test_")
+        or filename.startswith("spec_")
+        or ".test." in filename
+        or ".spec." in filename
+        or filename.endswith("_test.py")
+        or filename.endswith("_test.ts")
+        or filename.endswith("_test.tsx")
+        or filename.endswith("_spec.py")
+        or filename.endswith("_spec.ts")
+        or filename.endswith("_spec.tsx")
+    )

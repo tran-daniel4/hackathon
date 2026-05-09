@@ -7,6 +7,20 @@ from graph.models import GraphFactPatch, NodeFact, EdgeFact, Evidence, make_node
 
 
 _SRC_EXTS = frozenset({".py", ".ts", ".js", ".jsx", ".tsx", ".java", ".go", ".cs", ".rb", ".yml", ".yaml", ".json", ".toml", ".properties"})
+_DEP_NAMES = {"requirements.txt", "package.json", "Pipfile", "pyproject.toml", "Directory.Packages.props"}
+_LOCK_NAMES = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb", "poetry.lock", "uv.lock"}
+_CONFIG_NAMES = {
+    "application.yml",
+    "application.yaml",
+    "application.properties",
+    "appsettings.json",
+    "appsettings.development.json",
+    "appsettings.production.json",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "compose.yml",
+    "compose.yaml",
+}
 
 # (db_name, [pattern_strings])
 _DB_PATTERNS: list[tuple[str, list[str]]] = [
@@ -86,6 +100,18 @@ _DB_PATTERNS: list[tuple[str, list[str]]] = [
 ]
 
 
+def _looks_like_pattern_definition(line: str) -> bool:
+    stripped = line.strip()
+    if stripped.startswith(("r\"", "r'")):
+        return True
+    if stripped.startswith('("') and "[" in stripped:
+        return True
+    quote_count = stripped.count('"') + stripped.count("'")
+    if quote_count >= 4 and any(token in stripped for token in ("{", "[", "],", "},")):
+        return True
+    return bool(re.match(r'^\(?["\'][^"\']+["\']\s*,?\s*$', stripped))
+
+
 class DatastoreExtractor(Analyzer):
     def supports(self, file_index: FileIndex) -> bool:
         return any(
@@ -105,13 +131,15 @@ class DatastoreExtractor(Analyzer):
         for path in file_index.paths:
             base = file_basename(path)
             ext = ("." + base.rsplit(".", 1)[-1].lower()) if "." in base else ""
-            if ext not in _SRC_EXTS:
+            if not _should_scan_file(base, ext):
                 continue
 
             content = file_index.get_content(path) or ""
             lines = content.splitlines()
 
             for lineno, line in enumerate(lines, start=1):
+                if _looks_like_pattern_definition(line):
+                    continue
                 for db_name, patterns in compiled:
                     if not any(rx.search(line) for rx in patterns):
                         continue
@@ -154,3 +182,21 @@ class DatastoreExtractor(Analyzer):
                     break  # only match first DB pattern per line
 
         return patch
+
+
+def _is_template_env_file(filename: str) -> bool:
+    lower = filename.lower()
+    return lower.startswith(".env.") and any(marker in lower for marker in ("example", "sample", "template"))
+
+
+def _should_scan_file(base: str, ext: str) -> bool:
+    lower = base.lower()
+    if lower in _LOCK_NAMES or _is_template_env_file(lower):
+        return False
+    if lower in _DEP_NAMES or ext in {".csproj", ".fsproj", ".vbproj"}:
+        return False
+    if lower.startswith(".env"):
+        return True
+    if lower in _CONFIG_NAMES:
+        return True
+    return ext in {".py", ".ts", ".js", ".jsx", ".tsx", ".java", ".go", ".cs", ".rb"}

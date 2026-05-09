@@ -10,10 +10,12 @@ import {
   Layers,
   LayoutGrid,
   Loader2,
+  RefreshCw,
   Settings as SettingsIcon,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import type { RawDiagram, ViewId } from "@/components/visualization/types";
+import type { NodeLayout, RawDiagram, ViewId } from "@/components/visualization/types";
 
 const ArchDiagram = dynamic(
   () => import("@/components/visualization/ArchDiagram").then((m) => ({ default: m.ArchDiagram })),
@@ -133,6 +135,7 @@ export function RepositoryDetail({
     severity: "low" | "medium" | "high" | "critical";
     details?: string;
   }>>([]);
+  const [selectedNode, setSelectedNode] = useState<NodeLayout | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const hasStarted = useRef(false);
@@ -298,7 +301,14 @@ export function RepositoryDetail({
     }
 
     if (diagrams && diagrams.length > 0) {
-      return <ArchDiagram diagrams={diagrams} viewId={VIEW_ID_MAP[currentView]} />;
+      return (
+        <ArchDiagram
+          diagrams={diagrams}
+          viewId={VIEW_ID_MAP[currentView]}
+          onNodeClick={setSelectedNode}
+          selectedNodeId={selectedNode?.id}
+        />
+      );
     }
 
     if (!isGitHub) {
@@ -324,6 +334,17 @@ export function RepositoryDetail({
             <div className="bg-[#0f0f15]/60 p-6 border border-white/10">
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-[18px]">System Architecture</h2>
+                <button
+                  onClick={() => {
+                    setSelectedNode(null);
+                    void syncAnalysis(false);
+                  }}
+                  disabled={status === "loading"}
+                  className="flex items-center gap-2 border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.13em] text-white/50 transition-colors hover:border-white/30 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <RefreshCw className={`h-3 w-3 ${status === "loading" ? "animate-spin" : ""}`} />
+                  Reanalyze
+                </button>
               </div>
 
               <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -359,6 +380,50 @@ export function RepositoryDetail({
           </div>
 
           <div className="space-y-6">
+            {selectedNode && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="border border-white/10 bg-[#0f0f15]/60 p-6"
+              >
+                <div className="mb-4 flex items-start justify-between gap-2">
+                  <h3 className="text-[15px] text-white leading-snug">{selectedNode.label}</h3>
+                  <button
+                    onClick={() => setSelectedNode(null)}
+                    className="mt-0.5 flex-shrink-0 text-white/30 transition-colors hover:text-white/70"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <span className="border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.13em] text-white/50">
+                    {selectedNode.type}
+                  </span>
+                  {selectedNode.severity && (
+                    <span
+                      className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] border ${
+                        selectedNode.severity === "high"
+                          ? "border-red-500/40 bg-red-500/10 text-red-400"
+                          : selectedNode.severity === "medium"
+                            ? "border-orange-500/40 bg-orange-500/10 text-orange-400"
+                            : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"
+                      }`}
+                    >
+                      {selectedNode.severity === "high" ? "Bottleneck" : selectedNode.severity} severity
+                    </span>
+                  )}
+                </div>
+
+                {selectedNode.description ? (
+                  <p className="text-[12px] leading-relaxed text-white/55">{selectedNode.description}</p>
+                ) : (
+                  <p className="text-[12px] text-white/30">No description available for this component.</p>
+                )}
+              </motion.div>
+            )}
+
             <div className="border border-white/10 bg-[#0f0f15]/60 p-6">
               <h3 className="mb-2 flex items-center gap-2 text-[16px]">
                 <Activity className="h-4 w-4 text-blue-400" />

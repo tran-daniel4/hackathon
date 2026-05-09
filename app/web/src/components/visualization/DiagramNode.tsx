@@ -34,7 +34,15 @@ const SEV_COLORS: Record<SeverityType, string> = {
   low:    "#eab308",
 };
 
-export function DiagramNode({ node }: { node: NodeLayout }) {
+export function DiagramNode({
+  node,
+  onClick,
+  isSelected,
+}: {
+  node: NodeLayout;
+  onClick?: () => void;
+  isSelected?: boolean;
+}) {
   const Icon = TYPE_ICON[node.type] ?? Globe;
   const colors = TYPE_COLORS[node.type] ?? TYPE_COLORS.external;
 
@@ -51,20 +59,29 @@ export function DiagramNode({ node }: { node: NodeLayout }) {
       <motion.div
         whileHover={{ y: -4 }}
         transition={{ type: "spring", stiffness: 400, damping: 20 }}
-        style={{ cursor: "default" }}
+        style={{ cursor: "pointer" }}
+        onClick={onClick}
       >
         <div
           style={{
             background: "linear-gradient(145deg, #131326 0%, #0d0d1f 100%)",
-            border: `1px solid ${colors.border}`,
+            border: isSelected ? `1px solid ${colors.accent}` : `1px solid ${colors.border}`,
             borderRadius: 12,
             padding: "12px 14px",
-            boxShadow: [
-              "0 4px 24px rgba(0,0,0,0.55)",
-              "0 1px 0 rgba(255,255,255,0.05) inset",
-              `0 0 0 1px rgba(255,255,255,0.04)`,
-              `0 8px 32px ${colors.accent}18`,
-            ].join(", "),
+            boxShadow: isSelected
+              ? [
+                  "0 4px 24px rgba(0,0,0,0.55)",
+                  "0 1px 0 rgba(255,255,255,0.05) inset",
+                  `0 0 0 1px ${colors.accent}40`,
+                  `0 0 20px ${colors.accent}30`,
+                  `0 8px 32px ${colors.accent}28`,
+                ].join(", ")
+              : [
+                  "0 4px 24px rgba(0,0,0,0.55)",
+                  "0 1px 0 rgba(255,255,255,0.05) inset",
+                  `0 0 0 1px rgba(255,255,255,0.04)`,
+                  `0 8px 32px ${colors.accent}18`,
+                ].join(", "),
             position: "relative",
             overflow: "hidden",
             minHeight: node.height,
@@ -153,22 +170,6 @@ export function DiagramNode({ node }: { node: NodeLayout }) {
             )}
           </div>
 
-          {node.description && (
-            <p
-              style={{
-                margin: "5px 0 0 0",
-                fontSize: 10,
-                fontWeight: 400,
-                color: "rgba(221,226,240,0.55)",
-                lineHeight: 1.4,
-                whiteSpace: "normal",
-                overflowWrap: "anywhere",
-                letterSpacing: "0.01em",
-              }}
-            >
-              {node.description}
-            </p>
-          )}
         </div>
       </motion.div>
     </motion.div>

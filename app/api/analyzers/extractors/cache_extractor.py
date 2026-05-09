@@ -39,6 +39,18 @@ _MEMCACHED_PATTERNS = [
 _READ_HINT_RE = re.compile(r'\.get\s*\(', re.IGNORECASE)
 
 
+def _looks_like_pattern_definition(line: str) -> bool:
+    stripped = line.strip()
+    if stripped.startswith(("r\"", "r'")):
+        return True
+    if stripped.startswith('("') and "[" in stripped:
+        return True
+    quote_count = stripped.count('"') + stripped.count("'")
+    if quote_count >= 4 and any(token in stripped for token in ("{", "[", "],", "},")):
+        return True
+    return bool(re.match(r'^\(?["\'][^"\']+["\']\s*,?\s*$', stripped))
+
+
 class CacheExtractor(Analyzer):
     def supports(self, file_index: FileIndex) -> bool:
         return any(
@@ -62,6 +74,8 @@ class CacheExtractor(Analyzer):
             lines = content.splitlines()
 
             for lineno, line in enumerate(lines, start=1):
+                if _looks_like_pattern_definition(line):
+                    continue
                 matched_cache: str | None = None
 
                 if any(rx.search(line) for rx in _REDIS_PATTERNS):

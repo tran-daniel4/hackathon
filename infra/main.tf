@@ -25,7 +25,7 @@ resource "digitalocean_droplet" "dynodocs" {
     supabase_database_url         = var.supabase_database_url
     supabase_alembic_database_url = var.supabase_alembic_database_url
     allowed_origins               = var.allowed_origins
-    ollama_model                  = var.ollama_model
+    anthropic_api_key             = var.anthropic_api_key
   })
 
   ssh_keys = var.ssh_fingerprints
