@@ -26,6 +26,15 @@ _anthropic = anthropic.Anthropic()
 _CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
+def _anthropic_message_text(message) -> str:
+    parts: list[str] = []
+    for block in message.content:
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts).strip()
+
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 class LLMConfig(BaseModel):
@@ -178,7 +187,7 @@ def _call_claude(prompt: str) -> str:
         system="Respond with valid JSON only. No markdown fences, no explanation, no extra text.",
         messages=[{"role": "user", "content": prompt}],
     )
-    return message.content[0].text.strip()
+    return _anthropic_message_text(message)
 
 
 def _call_ollama(prompt: str, cfg: LLMConfig) -> str:
