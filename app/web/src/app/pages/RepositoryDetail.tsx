@@ -11,7 +11,6 @@ import {
   LayoutGrid,
   Loader2,
   Settings as SettingsIcon,
-  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import type { RawDiagram, ViewId } from "@/components/visualization/types";
@@ -27,12 +26,15 @@ interface Repository {
   id: string;
   name: string;
   url: string;
-  lastUpdated: string;
+  lastUpdated?: string | null;
   componentsCount: number;
 }
 
 interface RepositoryDetailProps {
   repository: Repository;
+  initialView?: ArchitectureView;
+  onViewChange?: (view: ArchitectureView) => void;
+  onRepositoryUpdate?: (repository: Repository) => void;
 }
 
 interface RepositoryFinding {
@@ -46,6 +48,13 @@ interface RepositoryFinding {
 interface AnalysisSnapshotResponse {
   analyzed_at?: string;
   diagrams?: RawDiagram[];
+  repository?: {
+    id: string;
+    name: string;
+    url: string;
+    componentsCount: number;
+    lastUpdated?: string;
+  };
   bottlenecks?: {
     findings?: RepositoryFinding[];
   };
@@ -96,9 +105,26 @@ function severityRank(severity: RepositoryFinding["severity"]): number {
   }
 }
 
-export function RepositoryDetail({ repository }: RepositoryDetailProps) {
+function normalizeRepositorySnapshot(repository: AnalysisSnapshotResponse["repository"]): Repository | null {
+  if (!repository) return null;
+  const parsedDate = repository.lastUpdated ? new Date(repository.lastUpdated) : null;
+  return {
+    id: repository.id,
+    name: repository.name,
+    url: repository.url,
+    componentsCount: repository.componentsCount ?? 0,
+    lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
+  };
+}
+
+export function RepositoryDetail({
+  repository,
+  initialView = "component",
+  onViewChange,
+  onRepositoryUpdate,
+}: RepositoryDetailProps) {
   const { session, githubToken } = useAuth();
-  const [currentView, setCurrentView] = useState<ArchitectureView>("component");
+  const [currentView, setCurrentView] = useState<ArchitectureView>(initialView);
   const [diagrams, setDiagrams] = useState<RawDiagram[] | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<Array<{
     id: string;
@@ -110,6 +136,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const hasStarted = useRef(false);
+  const [componentCount, setComponentCount] = useState(repository.componentsCount);
 
   const accessToken = (session as { access_token?: string } | null)?.access_token ?? "";
   const isGitHub = isGitHubUrl(repository.url);
@@ -117,6 +144,11 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
   const applySnapshot = useCallback((data: AnalysisSnapshotResponse) => {
     if (data.diagrams?.length) {
       setDiagrams(data.diagrams);
+    }
+    const updatedRepository = normalizeRepositorySnapshot(data.repository);
+    if (updatedRepository) {
+      setComponentCount(updatedRepository.componentsCount);
+      onRepositoryUpdate?.(updatedRepository);
     }
 
     setRecentAlerts(
@@ -136,7 +168,20 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
           details: finding.why,
         })),
     );
-  }, []);
+  }, [onRepositoryUpdate]);
+
+  useEffect(() => {
+    setCurrentView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
+    setComponentCount(repository.componentsCount);
+  }, [repository.componentsCount]);
+
+  const handleViewChange = useCallback((view: ArchitectureView) => {
+    setCurrentView(view);
+    onViewChange?.(view);
+  }, [onViewChange]);
 
   const loadLatestAnalysis = useCallback(async (): Promise<boolean> => {
     if (!accessToken) {
@@ -221,13 +266,6 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
     })();
   }, [accessToken, isGitHub, loadLatestAnalysis, syncAnalysis]);
 
-  const systemMetrics = [
-    { label: "Active Services", value: "12", trend: "+2" },
-    { label: "API Requests/min", value: "2.4K", trend: "+12%" },
-    { label: "Avg Response Time", value: "145ms", trend: "-8%" },
-    { label: "Error Rate", value: "0.03%", trend: "-15%" },
-  ];
-
   const views = {
     context: { label: "System Context", description: "High-level view", icon: Layers },
     conceptual: { label: "Conceptual", description: "Business-level system overview", icon: LayoutGrid },
@@ -293,7 +331,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-[18px]">System Architecture</h2>
                 <div className="text-[11px] uppercase tracking-[0.15em] text-white/50">
-                  {repository.componentsCount} Components
+                  {componentCount} Components
                 </div>
               </div>
 
@@ -306,7 +344,7 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
                       key={viewKey}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => setCurrentView(viewKey)}
+                      onClick={() => handleViewChange(viewKey)}
                       className={`border p-4 transition-all ${
                         currentView === viewKey
                           ? "border-blue-500 bg-blue-500/10"
@@ -325,26 +363,6 @@ export function RepositoryDetail({ repository }: RepositoryDetailProps) {
 
               <div className="border border-white/10 bg-black/20 p-8">
                 {renderDiagramArea()}
-              </div>
-            </div>
-
-            <div className="border border-white/10 bg-[#0f0f15]/60 p-6">
-              <h3 className="mb-6 flex items-center gap-2 text-[16px]">
-                <TrendingUp className="h-4 w-4 text-green-400" />
-                System Metrics
-              </h3>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                {systemMetrics.map((metric) => (
-                  <div key={metric.label} className="border border-white/10 bg-white/5 p-4">
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-white/50">{metric.label}</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-[24px]">{metric.value}</span>
-                      <span className={`text-[11px] ${metric.trend.startsWith("+") ? "text-green-400" : "text-blue-400"}`}>
-                        {metric.trend}
-                      </span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>

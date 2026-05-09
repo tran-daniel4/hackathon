@@ -11,7 +11,7 @@ interface Repository {
   id: string;
   name: string;
   url: string;
-  lastUpdated: string;
+  lastUpdated?: string | null;
   componentsCount: number;
 }
 
@@ -33,6 +33,16 @@ interface AddRepositoryModalProps {
   onAdd: (repo: Repository) => void;
 }
 
+interface AnalysisSyncResponse {
+  repository?: {
+    id: string;
+    name: string;
+    url: string;
+    componentsCount: number;
+    lastUpdated?: string;
+  };
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 async function saveRepo(
@@ -47,11 +57,12 @@ async function saveRepo(
   });
   if (!res.ok) throw new Error(`${res.status}`);
   const data = await res.json();
+  const parsedDate = data.lastUpdated ? new Date(data.lastUpdated) : null;
   return {
     id: String(data.id),
     name: data.name,
     url: data.url,
-    lastUpdated: new Date(data.lastUpdated).toLocaleDateString(),
+    lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
     componentsCount: data.componentsCount ?? 0,
   };
 }
@@ -60,8 +71,8 @@ async function syncRepoAnalysis(
   repoId: string,
   accessToken: string,
   githubToken: string,
-): Promise<void> {
-  await fetch(`${API_BASE}/repos/${repoId}/analysis/sync`, {
+): Promise<Repository | null> {
+  const res = await fetch(`${API_BASE}/repos/${repoId}/analysis/sync`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -71,6 +82,21 @@ async function syncRepoAnalysis(
       github_token: githubToken,
     }),
   });
+  if (!res.ok) {
+    return null;
+  }
+  const data = (await res.json()) as AnalysisSyncResponse;
+  if (!data.repository) {
+    return null;
+  }
+  const parsedDate = data.repository.lastUpdated ? new Date(data.repository.lastUpdated) : null;
+  return {
+    id: String(data.repository.id),
+    name: data.repository.name,
+    url: data.repository.url,
+    lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
+    componentsCount: data.repository.componentsCount ?? 0,
+  };
 }
 
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
@@ -131,7 +157,11 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
         const saved = await saveRepo(repo.name, repo.html_url, accessToken);
         onAdd(saved);
         if (githubToken) {
-          void syncRepoAnalysis(saved.id, accessToken, githubToken);
+          void syncRepoAnalysis(saved.id, accessToken, githubToken).then((updated) => {
+            if (updated) {
+              onAdd(updated);
+            }
+          });
         }
       }
       onClose();

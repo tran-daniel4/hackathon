@@ -213,10 +213,7 @@ export function SettingsPage({ onBack: _onBack }: SettingsPageProps) {
               className="border border-white/10 bg-[#0f0f15]/60 p-8"
             >
               <h2 className="text-[20px] mb-2">Team Settings</h2>
-              <p className="text-[13px] text-white/60 mb-6">Manage your teams and collaborators</p>
-              <p className="text-[14px] text-white/70">
-                Team management features are coming soon. You will be able to create teams, invite members by email or GitHub username, and manage repository access.
-              </p>
+              <p className="text-[14px] text-white/70">Team management features are coming soon.</p>
             </motion.div>
           )}
 

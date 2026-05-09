@@ -9,6 +9,10 @@ class RepositoryCreate(BaseModel):
     url: str
 
 
+class RepositoryUpdate(BaseModel):
+    name: str
+
+
 class RepositoryOut(BaseModel):
     id: uuid.UUID
     name: str

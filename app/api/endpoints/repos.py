@@ -16,7 +16,7 @@ from db.session import get_db
 from models.profile import Profile
 from models.repository import Repository
 from models.repository_analysis import RepositoryAnalysis
-from schemas.repository import RepositoryCreate, RepositoryOut
+from schemas.repository import RepositoryCreate, RepositoryOut, RepositoryUpdate
 
 router = APIRouter(prefix="/repos", tags=["repos"])
 
@@ -37,6 +37,10 @@ def _analysis_cache_key(repo_id: uuid.UUID) -> str:
 
 def _alerts_cache_key(user_id: uuid.UUID) -> str:
     return f"repo-alerts:{user_id}"
+
+
+def _repository_payload(repo: Repository) -> dict[str, Any]:
+    return RepositoryOut.model_validate(repo).model_dump(mode="json")
 
 
 @router.get("", response_model=list[RepositoryOut])
@@ -158,7 +162,7 @@ async def get_latest_repo_analysis(
     if analysis is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No saved analysis found")
 
-    payload = _serialize_analysis_snapshot(analysis)
+    payload = _serialize_analysis_snapshot(analysis, repo)
     await redis.set(cache_key, json.dumps(payload), ex=_CACHE_TTL)
     return payload
 
@@ -184,7 +188,7 @@ async def sync_repo_analysis(
             should_refresh = True
 
     if not should_refresh and latest is not None:
-        payload = _serialize_analysis_snapshot(latest)
+        payload = _serialize_analysis_snapshot(latest, repo)
         redis = get_redis()
         await redis.set(_analysis_cache_key(repo_id), json.dumps(payload), ex=_CACHE_TTL)
         return payload
@@ -198,7 +202,7 @@ async def sync_repo_analysis(
         repo=repo,
         bundle=bundle,
     )
-    payload = _serialize_analysis_snapshot(analysis)
+    payload = _serialize_analysis_snapshot(analysis, repo)
 
     redis = get_redis()
     await redis.set(_analysis_cache_key(repo_id), json.dumps(payload), ex=_CACHE_TTL)
@@ -226,6 +230,26 @@ async def create_repo(
     redis = get_redis()
     await redis.delete(_repos_cache_key(current_user.id))
     await redis.delete(_alerts_cache_key(current_user.id))
+
+    return RepositoryOut.model_validate(repo)
+
+
+@router.patch("/{repo_id}", response_model=RepositoryOut)
+async def update_repo(
+    repo_id: uuid.UUID,
+    body: RepositoryUpdate,
+    current_user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RepositoryOut:
+    repo = await _get_repo_or_404(db, current_user.id, repo_id)
+    repo.name = body.name
+    await db.commit()
+    await db.refresh(repo)
+
+    redis = get_redis()
+    await redis.delete(_repos_cache_key(current_user.id))
+    await redis.delete(_alerts_cache_key(current_user.id))
+    await redis.delete(_analysis_cache_key(repo_id))
 
     return RepositoryOut.model_validate(repo)
 
@@ -295,7 +319,7 @@ async def _save_repository_analysis(
     return analysis
 
 
-def _serialize_analysis_snapshot(analysis: RepositoryAnalysis) -> dict[str, Any]:
+def _serialize_analysis_snapshot(analysis: RepositoryAnalysis, repo: Repository) -> dict[str, Any]:
     return {
         "id": str(analysis.id),
         "repository_id": str(analysis.repository_id),
@@ -304,6 +328,7 @@ def _serialize_analysis_snapshot(analysis: RepositoryAnalysis) -> dict[str, Any]
         "branch": analysis.branch,
         "commit_sha": analysis.commit_sha,
         "analyzed_at": analysis.analyzed_at.isoformat(),
+        "repository": _repository_payload(repo),
         **(analysis.snapshot or {}),
     }
 

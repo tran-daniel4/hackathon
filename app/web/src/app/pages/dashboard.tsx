@@ -17,7 +17,7 @@ interface Repository {
   id: string;
   name: string;
   url: string;
-  lastUpdated: string;
+  lastUpdated?: string | null;
   componentsCount: number;
 }
 
@@ -45,6 +45,7 @@ interface AlertsResponse {
 }
 
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
+type RepositoryView = "context" | "conceptual" | "component" | "operational";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -59,6 +60,38 @@ function relativeTime(input?: string): string {
   if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
+
+function mapPerspectiveToRepositoryView(perspective: ViewPerspective): RepositoryView {
+  switch (perspective) {
+    case "system-context":
+      return "context";
+    case "conceptual":
+      return "conceptual";
+    case "operational":
+      return "operational";
+    default:
+      return "component";
+  }
+}
+
+function mapRepositoryViewToPerspective(view: RepositoryView): ViewPerspective {
+  switch (view) {
+    case "context":
+      return "system-context";
+    case "conceptual":
+      return "conceptual";
+    case "operational":
+      return "operational";
+    default:
+      return "component";
+  }
+}
+
+function normalizeLastUpdated(input?: string | null): string | null {
+  if (!input) return null;
+  const parsed = new Date(input);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleDateString();
 }
 
 export function Dashboard() {
@@ -79,6 +112,17 @@ export function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
 
+  const upsertRepository = (repo: Repository) => {
+    setRepositories((prev) => {
+      const existing = prev.some((item) => item.id === repo.id);
+      if (!existing) {
+        return [repo, ...prev];
+      }
+      return prev.map((item) => item.id === repo.id ? { ...item, ...repo } : item);
+    });
+    setSelectedRepo((prev) => prev && prev.id === repo.id ? { ...prev, ...repo } : prev);
+  };
+
   useEffect(() => {
     if (!accessToken) return;
     setReposLoading(true);
@@ -95,7 +139,7 @@ export function Dashboard() {
             id: String(r.id),
             name: r.name,
             url: r.url,
-            lastUpdated: new Date(r.lastUpdated).toLocaleDateString(),
+            lastUpdated: normalizeLastUpdated(r.lastUpdated),
             componentsCount: r.componentsCount ?? 0,
           }))
         );
@@ -204,14 +248,40 @@ export function Dashboard() {
   }, []);
 
   const handleAddRepository = (repo: Repository) => {
-    setRepositories((prev) => [...prev, repo]);
+    upsertRepository(repo);
     toast.success(`${repo.name} added`, {
       description: "Your architecture diagram is being generated",
     });
   };
 
-  const handleEditRepository = (repo: Repository) => {
-    toast.info(`Editing ${repo.name}`);
+  const handleEditRepository = async (repo: Repository) => {
+    const nextName = window.prompt("Rename repository", repo.name)?.trim();
+    if (!nextName || nextName === repo.name) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/repos/${repo.id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: nextName }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      upsertRepository({
+        id: String(data.id),
+        name: data.name,
+        url: data.url,
+        lastUpdated: normalizeLastUpdated(data.lastUpdated),
+        componentsCount: data.componentsCount ?? 0,
+      });
+      toast.success("Repository renamed");
+    } catch {
+      toast.error("Failed to rename repository");
+    }
   };
 
   const handleDeleteRepository = async (id: string) => {
@@ -286,7 +356,6 @@ export function Dashboard() {
                 className="relative p-2 hover:bg-white/5 rounded-full transition-colors"
               >
                 <Bell className="w-5 h-5 text-white/60" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
               </motion.button>
 
               <AnimatePresence>
@@ -299,28 +368,10 @@ export function Dashboard() {
                   >
                     <div className="p-4 border-b border-white/10">
                       <h3 className="text-[14px]">Notifications</h3>
-                      <p className="text-[11px] text-white/50 mt-1">Team notes and updates</p>
+                      <p className="text-[11px] text-white/50 mt-1">You’re all caught up</p>
                     </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {[
-                        { repo: "main-api", user: "Sarah Chen", message: "Added notes on database optimization", time: "5 min ago" },
-                        { repo: "payment-service", user: "Mike Johnson", message: "Flagged bottleneck in queue processing", time: "1 hour ago" },
-                        { repo: "frontend-app", user: "Emma Davis", message: "Updated component architecture notes", time: "3 hours ago" },
-                      ].map((notif, idx) => (
-                        <div key={idx} className="p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors">
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-[12px] text-blue-400">{notif.repo}</span>
-                            <span className="text-[10px] text-white/40">{notif.time}</span>
-                          </div>
-                          <p className="text-[13px] mb-1">{notif.user}</p>
-                          <p className="text-[12px] text-white/60">{notif.message}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-3 border-t border-white/10">
-                      <button className="w-full text-[11px] text-white/60 hover:text-white transition-colors uppercase tracking-[0.15em]">
-                        View All
-                      </button>
+                    <div className="p-6 text-center text-[12px] text-white/45">
+                      No notifications yet.
                     </div>
                   </motion.div>
                 )}
@@ -391,7 +442,14 @@ export function Dashboard() {
       {currentView === "activity" && <ActivityPage />}
       {currentView === "settings" && <SettingsPage onBack={() => setSubView(null)} />}
       {currentView === "teams" && <TeamsPage onBack={() => router.push("/diagrams")} />}
-      {currentView === "repository" && selectedRepo && <RepositoryDetail repository={selectedRepo} />}
+      {currentView === "repository" && selectedRepo && (
+        <RepositoryDetail
+          repository={selectedRepo}
+          initialView={mapPerspectiveToRepositoryView(perspective)}
+          onViewChange={(view) => setPerspective(mapRepositoryViewToPerspective(view))}
+          onRepositoryUpdate={upsertRepository}
+        />
+      )}
 
       {/* Dashboard Main Content */}
       {currentView === "dashboard" && <div className="max-w-[1800px] mx-auto px-8 py-12">
@@ -491,7 +549,7 @@ export function Dashboard() {
                         <p className="text-[13px] text-white/50 mb-3">{repo.url}</p>
                         <div className="flex items-center gap-6 text-[12px] text-white/40">
                           <span>{repo.componentsCount} components</span>
-                          <span>Updated {repo.lastUpdated}</span>
+                          {repo.lastUpdated ? <span>Updated {repo.lastUpdated}</span> : null}
                         </div>
                       </div>
 

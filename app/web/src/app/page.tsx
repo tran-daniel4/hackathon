@@ -57,11 +57,11 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex justify-between items-center mix-blend-difference">
         <div className="tracking-tight">DynoDocs</div>
         <div className="flex items-center gap-12">
-          <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
+          {/* <div className="flex gap-12 uppercase text-[11px] tracking-[0.15em] opacity-60">
             <button className="hover:opacity-100 transition-opacity">Platform</button>
             <button className="hover:opacity-100 transition-opacity">Docs</button>
             <button className="hover:opacity-100 transition-opacity">Demo</button>
-          </div>
+          </div> */}
           <button
             onClick={() => setShowLogin(true)}
             className="px-6 py-2 border border-white/20 bg-white/5 uppercase text-[11px] tracking-[0.15em] hover:bg-white/10 transition-colors"
@@ -111,7 +111,7 @@ export default function Home() {
         </div>
 
         {/* Scroll Indicator */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 2, duration: 1 }}
@@ -119,10 +119,12 @@ export default function Home() {
         >
           <div className="text-[9px] uppercase tracking-[0.2em]">Scroll</div>
           <div className="w-[1px] h-12 bg-white animate-pulse" />
-        </motion.div>
+        </motion.div> */}
       </section>
 
       {/* Feature Grid - Modular Panels */}
+      {false && (
+        <>
       <section className="px-8 md:px-16 py-32 max-w-[1600px] mx-auto">
         <motion.div
           initial={{ opacity: 0 }}
@@ -323,6 +325,8 @@ export default function Home() {
           </div>
         </div>
       </footer>
+        </>
+      )}
     </div>
   );
 }
