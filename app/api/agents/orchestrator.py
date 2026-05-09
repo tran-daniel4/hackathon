@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Any, TypedDict
 from langgraph.graph import StateGraph, END
 
 from agents.repo_analyzer import analyze_repo
@@ -38,7 +38,7 @@ def _run_diagram_generator(state: PipelineState) -> PipelineState:
     return state
 
 
-def _build_graph() -> StateGraph:
+def _build_graph() -> Any:
     graph = StateGraph(PipelineState)
 
     graph.add_node("analyze", _run_repo_analyzer)

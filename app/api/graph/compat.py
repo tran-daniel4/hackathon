@@ -3,11 +3,12 @@ Backward-compatibility adapter: converts new GraphFacts → old ArchGraph format
 The old ArchGraph is still consumed by rules_engine, aggregator, and diagram generators.
 """
 from collections import Counter
+from typing import cast
 
 from graph.models import GraphFacts
 
 # Import old models from their original location
-from pipeline.graph_builder import ArchGraph, Node, Edge
+from pipeline.graph_builder import ArchGraph, Node, Edge, NodeType, EdgeType
 
 
 _NODE_TYPE_MAP: dict[str, str] = {
@@ -49,7 +50,7 @@ def graph_facts_to_arch_graph(facts: GraphFacts) -> ArchGraph:
         nodes.append(Node(
             id=nf.id,
             label=nf.name,
-            type=old_type,
+            type=cast(NodeType, old_type),
             metadata={
                 "language": nf.language,
                 "framework": nf.framework,
@@ -67,7 +68,7 @@ def graph_facts_to_arch_graph(facts: GraphFacts) -> ArchGraph:
         edges.append(Edge(
             source=ef.src,
             target=ef.dst,
-            type=old_kind,
+            type=cast(EdgeType, old_kind),
             confidence=ef.confidence,
             evidence={
                 "label": ef.label or "",

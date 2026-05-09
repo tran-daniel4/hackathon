@@ -10,12 +10,13 @@ Output format matches what DiagramView.tsx / ArchDiagram.tsx expect:
 Nodes are assigned to a `group` for column-based layout in the frontend.
 `layer` is kept for backward-compat row ordering within a column.
 """
+from collections.abc import Mapping
 from typing import Literal
 
 from pydantic import BaseModel
 
 from pipeline.scanner import RepoScan
-from pipeline.graph_builder import ArchGraph
+from pipeline.graph_builder import ArchGraph, Node, Edge
 from pipeline.aggregator import BottleneckReport
 from pipeline.conceptual import build_conceptual_spec
 from pipeline.operational import build_operational_spec
@@ -479,7 +480,7 @@ def _worst_severity(sev_index: dict[str, str], node_ids: list[str]) -> str | Non
     return min(sevs, key=lambda s: _SEVERITY_RANK.get(s, 99))
 
 
-def _edge_label(edge) -> str:
+def _edge_label(edge: Edge) -> str:
     explicit = (edge.label or "").strip()
     if explicit:
         return explicit
@@ -496,9 +497,9 @@ def _edge_label(edge) -> str:
 
 def _component_group_for_node(
     *,
-    node,
+    node: Node,
     ui_type: str,
-    node_by_id: dict[str, object],
+    node_by_id: Mapping[str, Node],
     incoming_by_target: dict[str, list],
     outgoing_by_source: dict[str, list],
 ) -> str:

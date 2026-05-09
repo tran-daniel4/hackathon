@@ -8,14 +8,13 @@ from graph.compat import graph_facts_to_arch_graph
 
 
 def _make_facts(**kwargs) -> GraphFacts:
-    defaults = dict(
+    return GraphFacts(  # type: ignore[call-arg]
         analysis_id="test-001",
         repo=RepoMeta(name="test"),
         nodes=[],
         edges=[],
+        **kwargs,
     )
-    defaults.update(kwargs)
-    return GraphFacts(**defaults)
 
 
 def test_node_type_mapping():
@@ -35,7 +34,7 @@ def test_node_type_mapping():
     ]
     for new_type, expected_old in mapping:
         facts = _make_facts(nodes=[
-            NodeFact(id="n1", type=new_type, name="Test Node")
+            NodeFact(id="n1", type=new_type, name="Test Node")  # type: ignore[arg-type]
         ])
         graph = graph_facts_to_arch_graph(facts)
         assert len(graph.nodes) == 1
@@ -64,7 +63,7 @@ def test_edge_kind_mapping():
                 NodeFact(id="b", type="service", name="B"),
             ],
             edges=[
-                EdgeFact(id="e1", src="a", dst="b", kind=kind, direction=direction)
+                EdgeFact(id="e1", src="a", dst="b", kind=kind, direction=direction)  # type: ignore[arg-type]
             ],
         )
         graph = graph_facts_to_arch_graph(facts)

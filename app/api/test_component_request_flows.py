@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from analyzers.file_index import FileIndex
 from analyzers.orchestrator import AnalyzerOrchestrator
 from bottlenecks.orchestrator import run_bottleneck_analysis
-from endpoints.analyze import _build_request_flow_annotations
+from endpoints.analyze import _build_request_flow_annotations  # type: ignore[attr-defined]
 from graph.compat import graph_facts_to_arch_graph
 from pipeline.llm_wrapper import LLMConfig
 

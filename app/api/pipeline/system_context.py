@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Mapping
 
-from pipeline.graph_builder import ArchGraph
+from pipeline.graph_builder import ArchGraph, Node
 from pipeline.scanner import RepoScan
 
 _IDENTITY_NAMES = {
@@ -194,7 +195,7 @@ def _build_actor_nodes(scan: RepoScan, graph: ArchGraph) -> list[dict]:
     return deduped[:3]
 
 
-def _build_identity_nodes(scan: RepoScan, externals_by_id: dict[str, object]) -> list[dict]:
+def _build_identity_nodes(scan: RepoScan, externals_by_id: Mapping[str, Node]) -> list[dict]:
     candidates: dict[str, dict] = {}
 
     for provider in {hit.provider for hit in scan.env_vars}:
@@ -244,7 +245,7 @@ def _build_identity_nodes(scan: RepoScan, externals_by_id: dict[str, object]) ->
 def _build_partner_nodes(
     scan: RepoScan,
     graph: ArchGraph,
-    externals_by_id: dict[str, object],
+    externals_by_id: Mapping[str, Node],
     identity_ids: set[str],
 ) -> list[dict]:
     scores: Counter[str] = Counter()
