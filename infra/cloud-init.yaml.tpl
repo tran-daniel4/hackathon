@@ -37,22 +37,16 @@ runcmd:
       "$${PUBLIC_IP}" "$${FRONTEND_ORIGIN}" "$${API_PUBLIC_URL}" "$${COMBINED_ALLOWED_ORIGINS}" \
       > /opt/dynodocs/.runtime-env
 
-  # Write shared root .env for frontend-friendly defaults
+  # Write API .env
   - |
     . /opt/dynodocs/.runtime-env
-    cat > /opt/dynodocs/.env <<EOF
-    NEXT_PUBLIC_API_URL=$${API_PUBLIC_URL}
-    NEXT_PUBLIC_SUPABASE_URL=${supabase_url}
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${supabase_publishable_key}
+    cat > /opt/dynodocs/app/api/.env <<EOF
     SUPABASE_URL=${supabase_url}
     DATABASE_URL=${supabase_database_url}
     ALEMBIC_DATABASE_URL=${supabase_alembic_database_url}
     REDIS_URL=redis://localhost:6379/0
     ALLOWED_ORIGINS=$${COMBINED_ALLOWED_ORIGINS}
     EOF
-
-  # Write API .env
-  - cp /opt/dynodocs/.env /opt/dynodocs/app/api/.env
 
   # Write frontend production env
   - |
@@ -96,10 +90,11 @@ runcmd:
 
   # Create systemd service for API
   - |
-    cat > /etc/systemd/system/dynodocs-api.service <<'EOF'
+    cat > /etc/systemd/system/dynodocs-api.service << 'EOF'
     [Unit]
     Description=DynoDocs API
-    After=network.target
+    After=network-online.target
+    Wants=network-online.target
 
     [Service]
     WorkingDirectory=/opt/dynodocs/app/api
@@ -116,10 +111,11 @@ runcmd:
 
   # Create systemd service for frontend
   - |
-    cat > /etc/systemd/system/dynodocs-web.service <<'EOF'
+    cat > /etc/systemd/system/dynodocs-web.service << 'EOF'
     [Unit]
     Description=DynoDocs Web
-    After=network.target
+    After=network-online.target
+    Wants=network-online.target
 
     [Service]
     WorkingDirectory=/opt/dynodocs/app/web
