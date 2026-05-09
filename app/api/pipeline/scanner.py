@@ -888,7 +888,7 @@ def _extract_readme_summary(files: dict[Path, str], root: Path) -> str:
         except ValueError:
             continue
         if len(rel_parts) == 1 and rel_parts[0].lower().startswith("readme"):
-            lines = [l for l in content.splitlines() if not l.strip().startswith("#")]
-            prose = " ".join(" ".join(l.split()) for l in lines if l.strip())
+            lines = [line for line in content.splitlines() if not line.strip().startswith("#")]
+            prose = " ".join(" ".join(line.split()) for line in lines if line.strip())
             return prose[:600]
     return ""
