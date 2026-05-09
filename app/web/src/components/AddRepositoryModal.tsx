@@ -6,6 +6,7 @@ import { Check, X, FolderOpen, Star } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthProvider";
+import { buildApiUrl } from "@/lib/api";
 
 interface Repository {
   id: string;
@@ -43,14 +44,22 @@ interface AnalysisSyncResponse {
   };
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+interface AnalysisUploadResponse {
+  repository?: {
+    id: string;
+    name: string;
+    url: string;
+    componentsCount: number;
+    lastUpdated?: string;
+  };
+}
 
 async function saveRepo(
   name: string,
   url: string,
   accessToken: string,
 ): Promise<Repository> {
-  const res = await fetch(`${API_BASE}/repos`, {
+  const res = await fetch(buildApiUrl("/repos"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ name, url }),
@@ -67,12 +76,43 @@ async function saveRepo(
   };
 }
 
+async function uploadRepoAnalysis(
+  repoId: string,
+  accessToken: string,
+  files: Record<string, string>,
+): Promise<Repository | null> {
+  const res = await fetch(buildApiUrl(`/repos/${repoId}/analysis/upload`), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ files }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `${res.status}`);
+  }
+  const data = (await res.json()) as AnalysisUploadResponse;
+  if (!data.repository) {
+    return null;
+  }
+  const parsedDate = data.repository.lastUpdated ? new Date(data.repository.lastUpdated) : null;
+  return {
+    id: String(data.repository.id),
+    name: data.repository.name,
+    url: data.repository.url,
+    lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
+    componentsCount: data.repository.componentsCount ?? 0,
+  };
+}
+
 async function syncRepoAnalysis(
   repoId: string,
   accessToken: string,
   githubToken: string,
 ): Promise<Repository | null> {
-  const res = await fetch(`${API_BASE}/repos/${repoId}/analysis/sync`, {
+  const res = await fetch(buildApiUrl(`/repos/${repoId}/analysis/sync`), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -97,6 +137,20 @@ async function syncRepoAnalysis(
     lastUpdated: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toLocaleDateString() : null,
     componentsCount: data.repository.componentsCount ?? 0,
   };
+}
+
+type LocalProjectFiles = Record<string, string>;
+
+async function readLocalProjectFiles(fileList: FileList): Promise<LocalProjectFiles> {
+  const entries = await Promise.all(
+    Array.from(fileList).map(async (file) => {
+      const path = file.webkitRelativePath || file.name;
+      const content = await file.text();
+      return [path, content] as const;
+    }),
+  );
+
+  return Object.fromEntries(entries);
 }
 
 export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) {
@@ -182,13 +236,20 @@ export function AddRepositoryModal({ onClose, onAdd }: AddRepositoryModalProps) 
   const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const folderName = files[0].webkitRelativePath.split("/")[0];
+    const firstPath = files[0].webkitRelativePath || files[0].name;
+    const folderName = firstPath.split("/")[0];
+    setIsSaving(true);
     try {
       const saved = await saveRepo(folderName, folderName, accessToken);
-      onAdd(saved);
+      const localFiles = await readLocalProjectFiles(files);
+      const analyzed = await uploadRepoAnalysis(saved.id, accessToken, localFiles);
+      onAdd(analyzed ?? saved);
       onClose();
-    } catch {
-      toast.error("Failed to save repository");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to analyze local project");
+    } finally {
+      setIsSaving(false);
+      e.target.value = "";
     }
   };
 

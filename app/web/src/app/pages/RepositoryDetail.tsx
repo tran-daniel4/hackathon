@@ -15,14 +15,13 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { buildApiUrl } from "@/lib/api";
 import type { NodeLayout, RawDiagram, ViewId } from "@/components/visualization/types";
 
 const ArchDiagram = dynamic(
   () => import("@/components/visualization/ArchDiagram").then((m) => ({ default: m.ArchDiagram })),
   { ssr: false },
 );
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 interface Repository {
   id: string;
@@ -186,7 +185,7 @@ export function RepositoryDetail({
     }
 
     try {
-      const res = await fetch(`${API_BASE}/repos/${repository.id}/analysis/latest`, {
+      const res = await fetch(buildApiUrl(`/repos/${repository.id}/analysis/latest`), {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -221,7 +220,7 @@ export function RepositoryDetail({
     }
 
     try {
-      const res = await fetch(`${API_BASE}/repos/${repository.id}/analysis/sync`, {
+      const res = await fetch(buildApiUrl(`/repos/${repository.id}/analysis/sync`), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -248,7 +247,7 @@ export function RepositoryDetail({
   }, [accessToken, applySnapshot, githubToken, repository.id]);
 
   useEffect(() => {
-    if (!isGitHub || !accessToken || hasStarted.current) return;
+    if (!accessToken || hasStarted.current) return;
     hasStarted.current = true;
 
     void (async () => {
@@ -256,12 +255,18 @@ export function RepositoryDetail({
       setError("");
       const hasSnapshot = await loadLatestAnalysis();
       if (hasSnapshot) {
-        void syncAnalysis(true);
+        if (isGitHub && githubToken) {
+          void syncAnalysis(true);
+        }
         return;
       }
-      await syncAnalysis(false);
+      if (isGitHub) {
+        await syncAnalysis(false);
+        return;
+      }
+      setStatus("idle");
     })();
-  }, [accessToken, isGitHub, loadLatestAnalysis, syncAnalysis]);
+  }, [accessToken, githubToken, isGitHub, loadLatestAnalysis, syncAnalysis]);
 
   const views = {
     context: { label: "System Context", description: "High-level view", icon: Layers },
@@ -314,7 +319,7 @@ export function RepositoryDetail({
     if (!isGitHub) {
       return (
         <div className="flex h-64 items-center justify-center border border-dashed border-white/10 text-[13px] text-white/40">
-          Diagram generation is only supported for GitHub repositories
+          No saved local analysis found yet. Re-upload the local project to generate diagrams.
         </div>
       );
     }

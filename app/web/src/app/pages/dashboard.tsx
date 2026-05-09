@@ -13,6 +13,7 @@ import { RepositoryDetail } from "./RepositoryDetail";
 import { SettingsPage } from "./SettingsPage";
 import { TeamsPage } from "./TeamsPage";
 import { useAuth } from "@/components/AuthProvider";
+import { buildApiUrl } from "@/lib/api";
 
 interface Repository {
   id: string;
@@ -47,8 +48,6 @@ interface AlertsResponse {
 
 type ViewPerspective = "system-context" | "conceptual" | "component" | "operational";
 type RepositoryView = "context" | "conceptual" | "component" | "operational";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function relativeTime(input?: string): string {
   if (!input) return "Just now";
@@ -127,7 +126,7 @@ export function Dashboard() {
   useEffect(() => {
     if (!accessToken) return;
     setReposLoading(true);
-    fetch(`${API_BASE}/repos`, {
+    fetch(buildApiUrl("/repos"), {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((r) => {
@@ -167,7 +166,7 @@ export function Dashboard() {
       setAlertsLoading(true);
 
       try {
-        const res = await fetch(`${API_BASE}/repos/alerts?limit=3`, {
+        const res = await fetch(buildApiUrl("/repos/alerts?limit=3"), {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!res.ok) {
@@ -258,7 +257,7 @@ export function Dashboard() {
 
   const saveRepositoryName = async (repo: Repository, nextName: string) => {
     try {
-      const res = await fetch(`${API_BASE}/repos/${repo.id}`, {
+      const res = await fetch(buildApiUrl(`/repos/${repo.id}`), {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -284,7 +283,7 @@ export function Dashboard() {
   const handleDeleteRepository = async (id: string) => {
     setRepositories((prev) => prev.filter((r) => r.id !== id));
     try {
-      const res = await fetch(`${API_BASE}/repos/${id}`, {
+      const res = await fetch(buildApiUrl(`/repos/${id}`), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
