@@ -8,7 +8,6 @@ from analyzers.file_index import FileIndex
 from analyzers.orchestrator import AnalyzerOrchestrator
 from bottlenecks.models import RepoSignals
 from bottlenecks.orchestrator import build_component_annotations, run_bottleneck_analysis
-from core.config import settings
 from core.repo_loader import clone_github_repo, load_repo_files
 from graph.compat import graph_facts_to_arch_graph
 from pipeline.graph_builder import ArchGraph, Edge, Node
