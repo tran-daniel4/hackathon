@@ -4,10 +4,6 @@ terraform {
       source  = "digitalocean/digitalocean"
       version = "~> 2.0"
     }
-    null = {
-      source  = "hashicorp/null"
-      version = "~> 3.0"
-    }
   }
 }
 
@@ -71,34 +67,6 @@ resource "digitalocean_firewall" "dynodocs" {
     protocol              = "udp"
     port_range            = "1-65535"
     destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
-}
-
-resource "null_resource" "ollama_model_pull" {
-  depends_on = [digitalocean_droplet.dynodocs, digitalocean_firewall.dynodocs]
-
-  triggers = {
-    droplet_id  = digitalocean_droplet.dynodocs.id
-    ollama_model = var.ollama_model
-  }
-
-  connection {
-    type        = "ssh"
-    host        = digitalocean_droplet.dynodocs.ipv4_address
-    user        = "root"
-    agent       = true
-    timeout     = "30m"
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      # Wait for cloud-init to finish
-      "cloud-init status --wait",
-      # Wait for Ollama to be ready
-      "until curl -sf http://localhost:11434/api/tags > /dev/null; do sleep 5; done",
-      # Pull the model if not already present
-      "ollama list | grep -q '${var.ollama_model}' || ollama pull '${var.ollama_model}'",
-    ]
   }
 }
 
