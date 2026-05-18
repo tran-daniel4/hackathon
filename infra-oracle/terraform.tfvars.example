@@ -1,0 +1,20 @@
+tenancy_ocid        = "ocid1.tenancy.oc1..aaaaaaa..."
+user_ocid           = "ocid1.user.oc1..aaaaaaa..."
+fingerprint         = "xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+private_key_path    = "~/.oci/oci_api_key.pem"
+region              = "us-ashburn-1"
+compartment_ocid    = "ocid1.tenancy.oc1..aaaaaaa..."   # same as tenancy for root
+availability_domain = "abcD:US-ASHBURN-AD-1"
+
+ssh_public_key  = "ssh-ed25519 AAAA... your-email@example.com"
+ssh_allowed_ips = ["YOUR.IP.HERE/32"]
+
+repo_url    = "https://github.com/your-org/your-repo.git"
+repo_branch = "main"
+
+supabase_url                  = "https://your-project-ref.supabase.co"
+supabase_publishable_key      = "your_supabase_publishable_key"
+supabase_database_url         = "postgresql+asyncpg://postgres.your-ref:password@pooler.supabase.com:5432/postgres"
+supabase_alembic_database_url = "postgresql+asyncpg://postgres.your-ref:password@pooler.supabase.com:5432/postgres"
+allowed_origins               = "http://localhost:3000"
+anthropic_api_key             = "sk-ant-apixx-xxx...-xxxx" 

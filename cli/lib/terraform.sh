@@ -5,7 +5,7 @@ cmd_up() {
     exit 1
   fi
 
-  echo "→ Initializing Terraform..."
+  echo "→ Initializing Terraform ($INFRA_PROVIDER)..."
   if [[ ! -d "$INFRA_DIR/.terraform" ]]; then
     terraform -chdir="$INFRA_DIR" init -input=false
   fi
@@ -13,13 +13,13 @@ cmd_up() {
   echo "→ Provisioning infrastructure..."
   terraform -chdir="$INFRA_DIR" apply -auto-approve
 
-  echo "→ Fetching droplet IP..."
-  DROPLET_IP="$(terraform -chdir="$INFRA_DIR" output -raw droplet_ip)"
+  echo "→ Fetching instance IP..."
+  DROPLET_IP="$(terraform -chdir="$INFRA_DIR" output -raw "$TF_OUTPUT_IP")"
 
   read -rp "SSH private key path [~/.ssh/id_ed25519]: " SSH_KEY_PATH
   SSH_KEY_PATH="${SSH_KEY_PATH:-~/.ssh/id_ed25519}"
 
-  for entry in "DROPLET_IP=$DROPLET_IP" "SSH_KEY_PATH=$SSH_KEY_PATH"; do
+  for entry in "DROPLET_IP=$DROPLET_IP" "SSH_KEY_PATH=$SSH_KEY_PATH" "INFRA_PROVIDER=$INFRA_PROVIDER"; do
     key="${entry%%=*}"
     if [[ -f "$CONFIG" ]] && grep -q "^${key}=" "$CONFIG"; then
       sed -i "s|^${key}=.*|${entry}|" "$CONFIG"
@@ -31,13 +31,13 @@ cmd_up() {
   echo ""
   echo "✓ Provisioning complete"
   echo "  Backend API:  http://$DROPLET_IP:8000/health"
-  echo "  SSH:          ssh -i $SSH_KEY_PATH root@$DROPLET_IP"
+  echo "  SSH:          ssh -i $SSH_KEY_PATH $SSH_USER@$DROPLET_IP"
   echo ""
   echo "Note: cloud-init takes ~3 minutes to finish bootstrapping on first boot."
 }
 
 cmd_down() {
-  echo "→ Destroying infrastructure..."
+  echo "→ Destroying infrastructure ($INFRA_PROVIDER)..."
   terraform -chdir="$INFRA_DIR" destroy -auto-approve
 
   if [[ -f "$CONFIG" ]]; then

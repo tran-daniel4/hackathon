@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 580" width="1160" height="580" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L0,7 L8,3.5 z" fill="#64748B"/>
+    </marker>
+    <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L0,7 L8,3.5 z" fill="#3B82F6"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1160" height="580" fill="#F8FAFC"/>
+
+  <!-- Title -->
+  <text x="580" y="36" text-anchor="middle" font-size="21" font-weight="700" fill="#0F172A">Agentic System Diagrammer — Architecture Overview</text>
+  <text x="580" y="56" text-anchor="middle" font-size="12" fill="#64748B">AI-powered repository analysis and architecture visualization platform</text>
+
+  <!-- ======= ROW 1: MAIN FLOW ======= -->
+
+  <!-- USER (small) -->
+  <rect x="10" y="100" width="82" height="90" rx="10" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.8"/>
+  <circle cx="51" cy="127" r="12" fill="none" stroke="#64748B" stroke-width="2"/>
+  <path d="M 29 152 Q 51 140 73 152" fill="none" stroke="#64748B" stroke-width="2"/>
+  <text x="51" y="172" text-anchor="middle" font-size="11" font-weight="600" fill="#334155">User</text>
+  <text x="51" y="184" text-anchor="middle" font-size="9" fill="#94A3B8">Browser</text>
+
+  <!-- Arrow: User to Frontend -->
+  <line x1="92" y1="145" x2="133" y2="145" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- FRONTEND (blue) -->
+  <rect x="136" y="78" width="215" height="155" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="2.5"/>
+  <text x="243" y="103" text-anchor="middle" font-size="15" font-weight="700" fill="#1E40AF">Web Frontend</text>
+  <text x="243" y="118" text-anchor="middle" font-size="10" fill="#3B82F6">Next.js 16 · React 19 · TypeScript</text>
+  <line x1="150" y1="126" x2="336" y2="126" stroke="#BFDBFE" stroke-width="1"/>
+  <text x="243" y="141" text-anchor="middle" font-size="11" fill="#1D4ED8">Diagram viewer (XYFlow)</text>
+  <text x="243" y="156" text-anchor="middle" font-size="11" fill="#1D4ED8">Repository management</text>
+  <text x="243" y="171" text-anchor="middle" font-size="11" fill="#1D4ED8">Team collaboration</text>
+  <text x="243" y="186" text-anchor="middle" font-size="11" fill="#1D4ED8">Activity &amp; alerts feed</text>
+  <text x="243" y="207" text-anchor="middle" font-size="9" fill="#93C5FD" font-style="italic">Tailwind CSS · Framer Motion · Radix UI</text>
+  <text x="243" y="221" text-anchor="middle" font-size="9" fill="#93C5FD" font-style="italic" font-weight="600">Deployed on Vercel</text>
+
+  <!-- Arrows: Frontend to/from API -->
+  <line x1="351" y1="153" x2="396" y2="153" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="373" y="146" text-anchor="middle" font-size="9" fill="#64748B">REST calls</text>
+  <line x1="396" y1="164" x2="351" y2="164" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="373" y="177" text-anchor="middle" font-size="9" fill="#64748B">JSON diagram</text>
+
+  <!-- BACKEND API (green) -->
+  <rect x="398" y="78" width="215" height="155" rx="12" fill="#DCFCE7" stroke="#16A34A" stroke-width="2.5"/>
+  <text x="505" y="103" text-anchor="middle" font-size="15" font-weight="700" fill="#14532D">Backend API</text>
+  <text x="505" y="118" text-anchor="middle" font-size="10" fill="#16A34A">Python · FastAPI · asyncio</text>
+  <line x1="412" y1="126" x2="598" y2="126" stroke="#BBF7D0" stroke-width="1"/>
+  <text x="505" y="141" text-anchor="middle" font-size="11" fill="#166534">/analyze — submit repos</text>
+  <text x="505" y="156" text-anchor="middle" font-size="11" fill="#166534">/repos — CRUD + sync</text>
+  <text x="505" y="171" text-anchor="middle" font-size="11" fill="#166534">/teams — collaboration</text>
+  <text x="505" y="186" text-anchor="middle" font-size="11" fill="#166534">/auth/me — user profile</text>
+  <text x="505" y="222" text-anchor="middle" font-size="9" fill="#86EFAC" font-style="italic">SQLAlchemy · asyncpg · Pydantic · JWT</text>
+
+  <!-- Arrows: API to/from Analysis -->
+  <line x1="613" y1="153" x2="658" y2="153" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="635" y="146" text-anchor="middle" font-size="9" fill="#64748B">trigger</text>
+  <line x1="658" y1="164" x2="613" y2="164" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="635" y="177" text-anchor="middle" font-size="9" fill="#64748B">results</text>
+
+  <!-- ANALYSIS ENGINE (orange) -->
+  <rect x="660" y="78" width="215" height="155" rx="12" fill="#FED7AA" stroke="#EA580C" stroke-width="2.5"/>
+  <text x="767" y="103" text-anchor="middle" font-size="15" font-weight="700" fill="#7C2D12">Analysis Engine</text>
+  <text x="767" y="118" text-anchor="middle" font-size="10" fill="#EA580C">Python · LangGraph agents</text>
+  <line x1="674" y1="126" x2="860" y2="126" stroke="#FDBA74" stroke-width="1"/>
+  <text x="767" y="141" text-anchor="middle" font-size="11" fill="#9A3412">Scan repo structure &amp; code</text>
+  <text x="767" y="156" text-anchor="middle" font-size="11" fill="#9A3412">Detect services, APIs, datastores</text>
+  <text x="767" y="171" text-anchor="middle" font-size="11" fill="#9A3412">Find bottlenecks (12+ rules)</text>
+  <text x="767" y="186" text-anchor="middle" font-size="11" fill="#9A3412">Generate architecture views</text>
+  <text x="767" y="222" text-anchor="middle" font-size="9" fill="#FDBA74" font-style="italic">4 agent nodes · graph builder · layout engine</text>
+
+  <!-- Arrows: Analysis to/from AI Services -->
+  <line x1="875" y1="153" x2="918" y2="153" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="896" y="146" text-anchor="middle" font-size="9" fill="#64748B">LLM calls</text>
+  <line x1="918" y1="164" x2="875" y2="164" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="896" y="177" text-anchor="middle" font-size="9" fill="#64748B">insights</text>
+
+  <!-- AI SERVICES (purple) -->
+  <rect x="920" y="78" width="228" height="155" rx="12" fill="#EDE9FE" stroke="#7C3AED" stroke-width="2.5"/>
+  <text x="1034" y="103" text-anchor="middle" font-size="15" font-weight="700" fill="#4C1D95">AI Services</text>
+  <text x="1034" y="118" text-anchor="middle" font-size="10" fill="#7C3AED">External LLM providers</text>
+  <line x1="934" y1="126" x2="1134" y2="126" stroke="#DDD6FE" stroke-width="1"/>
+  <text x="1034" y="146" text-anchor="middle" font-size="12" font-weight="600" fill="#5B21B6">Anthropic Claude</text>
+  <text x="1034" y="160" text-anchor="middle" font-size="10" fill="#7C3AED">Analysis + diagram generation</text>
+  <line x1="934" y1="168" x2="1134" y2="168" stroke="#DDD6FE" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <text x="1034" y="183" text-anchor="middle" font-size="12" font-weight="600" fill="#5B21B6">DeepSeek</text>
+  <text x="1034" y="197" text-anchor="middle" font-size="10" fill="#7C3AED">Bottleneck findings review</text>
+  <line x1="934" y1="205" x2="1134" y2="205" stroke="#DDD6FE" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <text x="1034" y="220" text-anchor="middle" font-size="10" fill="#A78BFA">Ollama — optional local LLM</text>
+
+  <!-- ======= VERTICAL CONNECTORS ======= -->
+
+  <!-- API down to Supabase -->
+  <line x1="505" y1="233" x2="490" y2="318" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="530" y="280" text-anchor="middle" font-size="9" fill="#64748B">reads / writes</text>
+
+  <!-- API down-left to Redis (dashed) -->
+  <path d="M 450 233 L 450 278 L 253 278 L 253 318" stroke="#64748B" stroke-width="1.4" fill="none" stroke-dasharray="5,3" marker-end="url(#arr)"/>
+  <text x="345" y="272" text-anchor="middle" font-size="9" fill="#64748B">cache reads / writes</text>
+
+  <!-- Analysis down to GitHub -->
+  <line x1="767" y1="233" x2="767" y2="318" stroke="#64748B" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="793" y="280" text-anchor="middle" font-size="9" fill="#64748B">fetch repo</text>
+
+  <!-- Frontend dashed down-right to Supabase auth -->
+  <path d="M 243 233 L 243 298 L 408 298 L 408 318" stroke="#2563EB" stroke-width="1.2" fill="none" stroke-dasharray="4,3" marker-end="url(#arr-blue)" opacity="0.55"/>
+  <text x="318" y="293" text-anchor="middle" font-size="9" fill="#3B82F6">auth (JWT)</text>
+
+  <!-- ======= ROW 2: SUPPORTING SERVICES ======= -->
+
+  <!-- REDIS (red) -->
+  <rect x="143" y="320" width="212" height="115" rx="12" fill="#FEE2E2" stroke="#DC2626" stroke-width="2"/>
+  <text x="249" y="344" text-anchor="middle" font-size="14" font-weight="700" fill="#7F1D1D">Redis Cache</text>
+  <text x="249" y="358" text-anchor="middle" font-size="10" fill="#DC2626">In-memory store · port 6379</text>
+  <line x1="157" y1="365" x2="341" y2="365" stroke="#FECACA" stroke-width="1"/>
+  <text x="249" y="381" text-anchor="middle" font-size="11" fill="#991B1B">API response cache (TTL 5 min)</text>
+  <text x="249" y="396" text-anchor="middle" font-size="11" fill="#991B1B">Session &amp; analysis results</text>
+  <text x="249" y="424" text-anchor="middle" font-size="9" fill="#FCA5A5" font-style="italic">Docker service (local dev)</text>
+
+  <!-- SUPABASE (teal) -->
+  <rect x="390" y="320" width="232" height="115" rx="12" fill="#CCFBF1" stroke="#0D9488" stroke-width="2"/>
+  <text x="506" y="344" text-anchor="middle" font-size="14" font-weight="700" fill="#134E4A">Supabase</text>
+  <text x="506" y="358" text-anchor="middle" font-size="10" fill="#0D9488">Auth + PostgreSQL database</text>
+  <line x1="404" y1="365" x2="608" y2="365" stroke="#99F6E4" stroke-width="1"/>
+  <text x="506" y="381" text-anchor="middle" font-size="11" fill="#115E59">User auth · JWT · OAuth</text>
+  <text x="506" y="396" text-anchor="middle" font-size="11" fill="#115E59">Repos, analyses, teams (JSONB)</text>
+  <text x="506" y="424" text-anchor="middle" font-size="9" fill="#5EEAD4" font-style="italic">PostgreSQL · asyncpg ORM</text>
+
+  <!-- GITHUB API (gray) -->
+  <rect x="658" y="320" width="212" height="115" rx="12" fill="#F3F4F6" stroke="#374151" stroke-width="2"/>
+  <text x="764" y="344" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">GitHub API</text>
+  <text x="764" y="358" text-anchor="middle" font-size="10" fill="#374151">External source code access</text>
+  <line x1="672" y1="365" x2="856" y2="365" stroke="#D1D5DB" stroke-width="1"/>
+  <text x="764" y="381" text-anchor="middle" font-size="11" fill="#1F2937">Clone repositories</text>
+  <text x="764" y="396" text-anchor="middle" font-size="11" fill="#1F2937">Fetch file tree &amp; contents</text>
+  <text x="764" y="424" text-anchor="middle" font-size="9" fill="#9CA3AF" font-style="italic">REST API · token auth</text>
+
+  <!-- INFRASTRUCTURE (light orange, dashed border) -->
+  <rect x="900" y="320" width="248" height="115" rx="12" fill="#FFF7ED" stroke="#C2410C" stroke-width="1.8" stroke-dasharray="6,3"/>
+  <text x="1024" y="344" text-anchor="middle" font-size="14" font-weight="700" fill="#7C2D12">Infrastructure</text>
+  <text x="1024" y="358" text-anchor="middle" font-size="10" fill="#C2410C">Deploy target (dashed = env context)</text>
+  <line x1="914" y1="365" x2="1134" y2="365" stroke="#FED7AA" stroke-width="1"/>
+  <text x="1024" y="381" text-anchor="middle" font-size="11" fill="#9A3412">Oracle Cloud (Terraform)</text>
+  <text x="1024" y="396" text-anchor="middle" font-size="11" fill="#9A3412">Ubuntu 22.04 · 2 OCPU / 4 GB</text>
+  <text x="1024" y="411" text-anchor="middle" font-size="11" fill="#9A3412">VM.Standard.A1.Flex · Always Free</text>
+  <text x="1024" y="424" text-anchor="middle" font-size="9" fill="#FDBA74" font-style="italic">CLI tool: dynodocs.sh</text>
+
+  <!-- ======= LEGEND ======= -->
+  <rect x="10" y="455" width="148" height="112" rx="10" fill="white" stroke="#E2E8F0" stroke-width="1.5"/>
+  <text x="84" y="474" text-anchor="middle" font-size="11" font-weight="700" fill="#0F172A">Legend</text>
+  <rect x="20" y="482" width="11" height="11" rx="2" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="37" y="492" font-size="10" fill="#374151">Frontend</text>
+  <rect x="20" y="499" width="11" height="11" rx="2" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5"/>
+  <text x="37" y="509" font-size="10" fill="#374151">Backend / API</text>
+  <rect x="20" y="516" width="11" height="11" rx="2" fill="#FED7AA" stroke="#EA580C" stroke-width="1.5"/>
+  <text x="37" y="526" font-size="10" fill="#374151">AI Pipeline</text>
+  <rect x="20" y="533" width="11" height="11" rx="2" fill="#EDE9FE" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="37" y="543" font-size="10" fill="#374151">External AI</text>
+  <rect x="20" y="550" width="11" height="11" rx="2" fill="#CCFBF1" stroke="#0D9488" stroke-width="1.5"/>
+  <text x="37" y="560" font-size="10" fill="#374151">Data Store</text>
+
+  <!-- Footer note -->
+  <rect x="168" y="455" width="980" height="36" rx="8" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="178" y="473" font-size="11" fill="#64748B">
+    <tspan font-weight="600" fill="#475569">Data flow: </tspan>User submits GitHub URL → Frontend → Backend API → Analysis Engine clones repo via GitHub API → LangGraph agents run 4-stage pipeline
+  </text>
+  <text x="178" y="488" font-size="11" fill="#64748B">
+    <tspan font-weight="600" fill="#475569">Results: </tspan>AI-generated architecture diagram + bottleneck report stored in Supabase, cached in Redis, streamed back to Frontend as interactive node graph
+  </text>
+</svg>

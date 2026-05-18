@@ -7,9 +7,9 @@ cmd_redeploy() {
   source <(tr -d '\r' < "$CONFIG")
   SSH_KEY_PATH="${SSH_KEY_PATH/#\~/$HOME}"
 
-  echo "→ Deploying to $DROPLET_IP..."
-  ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=accept-new root@"$DROPLET_IP" \
-    "cd /opt/dynodocs && git fetch origin && git checkout feature/agents && git pull origin feature/agents && systemctl restart api"
+  echo "→ Deploying to $DROPLET_IP ($INFRA_PROVIDER)..."
+  ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=accept-new "$SSH_USER@$DROPLET_IP" \
+    "cd /opt/dynodocs && git fetch origin && git checkout feature/agents && git pull origin feature/agents && $RESTART_CMD"
 
   echo "✓ Deployment complete. Backend restarted at http://$DROPLET_IP:8000"
 }
